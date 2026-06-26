@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CloudOps Projects</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0f1a;--bg2:#111827;--bg3:#1a2236;--bg4:#1e2a40;
+  --border:#1f2d45;--border2:#263450;
+  --accent:#6366f1;--accent2:#818cf8;--accent-dim:rgba(99,102,241,0.15);
+  --text1:#f1f5f9;--text2:#94a3b8;--text3:#475569;
+  --crit:#ef4444;--high:#f97316;--med:#eab308;--low:#22c55e;
+  --crit-dim:rgba(239,68,68,0.15);--high-dim:rgba(249,115,22,0.15);
+  --med-dim:rgba(234,179,8,0.15);--low-dim:rgba(34,197,94,0.15);
+  --green:#22c55e;--red:#ef4444;--blue:#3b82f6;
+  --radius:8px;--radius2:12px;
+  --sidebar:220px;--topbar:52px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text1);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;overflow:hidden}
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+/* ── Layout ── */
+#app{display:flex;flex-direction:column;height:100vh}
+#topbar{height:var(--topbar);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;flex-shrink:0;z-index:10}
+#body{display:flex;flex:1;overflow:hidden}
+#sidebar{width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+#main{flex:1;overflow:auto;padding:0}
+/* ── Topbar ── */
+.tb-logo{font-weight:800;font-size:15px;color:var(--accent2);letter-spacing:-.3px;white-space:nowrap}
+.tb-logo span{color:var(--text2);font-weight:400}
+.tb-breadcrumb{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);flex:1;min-width:0}
+.tb-breadcrumb b{color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-sep{color:var(--text3)}
+.tb-search{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;color:var(--text1);font-size:12px;width:200px;outline:none}
+.tb-search:focus{border-color:var(--accent)}
+.tb-search::placeholder{color:var(--text3)}
+.tb-view-btn{padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:.15s}
+.tb-view-btn.active,.tb-view-btn:hover{background:var(--accent-dim);color:var(--accent2);border-color:var(--accent)}
+.tb-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;border:2px solid var(--border2)}
+/* ── Sidebar ── */
+.sb-section{padding:8px 0}
+.sb-label{padding:4px 14px;font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--text3);text-transform:uppercase}
+.sb-item{display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;border-radius:0;font-size:12px;color:var(--text2);transition:.1s;border-left:2px solid transparent;user-select:none}
+.sb-item:hover{background:var(--bg3);color:var(--text1)}
+.sb-item.active{background:var(--accent-dim);color:var(--accent2);border-left-color:var(--accent)}
+.sb-item .icon{width:16px;text-align:center;flex-shrink:0}
+.sb-item .count{margin-left:auto;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1px 6px;font-size:10px;color:var(--text3)}
+.sb-folder{display:flex;align-items:center;gap:6px;padding:5px 10px 5px 10px;cursor:pointer;font-size:12px;color:var(--text2);font-weight:600;user-select:none}
+.sb-folder:hover{color:var(--text1)}
+.sb-folder .chevron{font-size:9px;transition:.15s;color:var(--text3)}
+.sb-folder.open .chevron{transform:rotate(90deg)}
+.sb-proj{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 28px;cursor:pointer;font-size:12px;color:var(--text2);border-left:2px solid transparent;transition:.1s;user-select:none}
+.sb-proj:hover{background:var(--bg3);color:var(--text1)}
+.sb-proj.active{color:var(--accent2);border-left-color:var(--accent);background:var(--accent-dim)}
+.sb-proj .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sb-new-btn{margin:6px 12px;padding:6px 10px;border-radius:var(--radius);border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:11px;cursor:pointer;width:calc(100% - 24px);text-align:left;transition:.15s}
+.sb-new-btn:hover{border-color:var(--accent);color:var(--accent2)}
+.sb-bottom{margin-top:auto;padding:10px;border-top:1px solid var(--border)}
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius);border:none;font-size:12px;font-weight:500;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--bg3);color:var(--text1);border:1px solid var(--border)}.btn-secondary:hover{background:var(--bg4);border-color:var(--border2)}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid transparent}.btn-ghost:hover{background:var(--bg3);color:var(--text1)}
+.btn-danger{background:rgba(239,68,68,0.15);color:var(--crit);border:1px solid rgba(239,68,68,0.3)}.btn-danger:hover{background:rgba(239,68,68,0.25)}
+.btn-sm{padding:4px 8px;font-size:11px}
+.btn-xs{padding:2px 6px;font-size:10px}
+.btn-icon{padding:5px;width:28px;height:28px;justify-content:center}
+/* ── Cards ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:16px}
+/* ── Forms ── */
+.input,.select,.textarea{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:7px 10px;color:var(--text1);font-size:12px;outline:none;width:100%;transition:.15s;font-family:inherit}
+.input:focus,.select:focus,.textarea:focus{border-color:var(--accent);background:var(--bg4)}
+.input::placeholder,.textarea::placeholder{color:var(--text3)}
+.select option{background:var(--bg3)}
+.textarea{resize:vertical;min-height:80px}
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:.04em}
+/* ── Priority badges ── */
+.pri{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.pri-critical{background:var(--crit-dim);color:var(--crit)}
+.pri-high{background:var(--high-dim);color:var(--high)}
+.pri-medium{background:var(--med-dim);color:var(--med)}
+.pri-low{background:var(--low-dim);color:var(--low)}
+/* ── Status badges ── */
+.status{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.status-todo{background:rgba(148,163,184,0.1);color:var(--text2)}
+.status-inprogress{background:rgba(99,102,241,0.15);color:var(--accent2)}
+.status-review{background:rgba(234,179,8,0.15);color:var(--med)}
+.status-done{background:rgba(34,197,94,0.15);color:var(--green)}
+.status-blocked{background:rgba(239,68,68,0.15);color:var(--crit)}
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-sm{max-width:440px}
+.modal-md{max-width:640px}
+.modal-lg{max-width:860px}
+.modal-hd{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);gap:10px;flex-shrink:0}
+.modal-hd h3{flex:1;font-size:14px;font-weight:700}
+.modal-body{overflow-y:auto;padding:20px}
+.modal-ft{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+/* ── Kanban ── */
+#board{display:flex;gap:12px;padding:16px;overflow-x:auto;align-items:flex-start;min-height:calc(100vh - var(--topbar))}
+.k-col{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);width:280px;flex-shrink:0;display:flex;flex-direction:column;max-height:calc(100vh - var(--topbar) - 32px)}
+.k-col-hd{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.k-col-title{font-size:12px;font-weight:700;flex:1}
+.k-col-count{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1px 7px;font-size:10px;color:var(--text2)}
+.k-col-bar{height:3px;border-radius:2px;margin:0 12px 8px;opacity:.6}
+.k-cards{padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1}
+.k-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;cursor:pointer;transition:.15s;position:relative}
+.k-card:hover{border-color:var(--border2);background:var(--bg4);transform:translateY(-1px)}
+.k-card-title{font-size:12px;font-weight:600;color:var(--text1);line-height:1.4;margin-bottom:6px}
+.k-card-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.k-card-id{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text3)}
+.k-card-due{font-size:10px;color:var(--text2)}
+.k-card-due.overdue{color:var(--crit)}
+.k-progress{height:3px;background:var(--border);border-radius:2px;margin:8px 0 4px;overflow:hidden}
+.k-progress-bar{height:100%;border-radius:2px;background:var(--accent);transition:.3s}
+.k-avatars{display:flex;gap:-3px;margin-left:auto}
+.k-avatar{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--bg3);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-left:-4px}
+.k-add-card{width:100%;padding:7px;border-radius:var(--radius);border:1px dashed var(--border);background:transparent;color:var(--text3);font-size:11px;cursor:pointer;text-align:left;transition:.15s}
+.k-add-card:hover{border-color:var(--accent);color:var(--accent2);background:var(--accent-dim)}
+/* ── List view ── */
+#listview{padding:0}
+.lv-hd{display:grid;grid-template-columns:24px 1fr 100px 90px 80px 90px 80px;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;background:var(--bg2);z-index:5}
+.lv-row{display:grid;grid-template-columns:24px 1fr 100px 90px 80px 90px 80px;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);align-items:center;cursor:pointer;transition:.1s}
+.lv-row:hover{background:var(--bg3)}
+.lv-row .title{font-size:12px;font-weight:500;color:var(--text1);display:flex;align-items:center;gap:8px;min-width:0}
+.lv-row .title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lv-row .sub-count{font-size:10px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1px 5px;flex-shrink:0}
+.lv-group-hd{padding:10px 16px 6px;font-size:11px;font-weight:700;color:var(--text2);background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;position:sticky;top:37px;z-index:4}
+.lv-group-hd .g-count{font-size:10px;color:var(--text3);font-weight:400}
+.cb{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border2);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.15s}
+.cb.done{background:var(--green);border-color:var(--green)}
+.cb.done::after{content:'✓';color:#000;font-size:9px;font-weight:800}
+/* ── Task detail ── */
+.task-detail{display:grid;grid-template-columns:1fr 260px;gap:0;height:100%}
+.task-main{padding:24px;overflow-y:auto;border-right:1px solid var(--border)}
+.task-side{padding:16px;overflow-y:auto;background:var(--bg)}
+.task-title-input{background:transparent;border:none;outline:none;font-size:20px;font-weight:700;color:var(--text1);width:100%;margin-bottom:8px;font-family:inherit}
+.task-title-input::placeholder{color:var(--text3)}
+.task-desc{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px;font-size:12px;color:var(--text1);width:100%;resize:vertical;min-height:100px;font-family:inherit;outline:none}
+.task-desc:focus{border-color:var(--accent)}
+.task-desc::placeholder{color:var(--text3)}
+.side-field{margin-bottom:14px}
+.side-field label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:5px}
+.side-field .val{font-size:12px;color:var(--text1)}
+.side-select{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:5px 8px;color:var(--text1);font-size:12px;width:100%;outline:none;cursor:pointer}
+.side-select:focus{border-color:var(--accent)}
+.side-select option{background:var(--bg3)}
+/* ── Subtasks ── */
+.subtask-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
+.subtask-row:last-child{border-bottom:none}
+.subtask-title{flex:1;font-size:12px;color:var(--text1)}
+.subtask-title.done{text-decoration:line-through;color:var(--text3)}
+/* ── Comments ── */
+.comment{padding:10px 0;border-bottom:1px solid var(--border)}
+.comment:last-child{border-bottom:none}
+.comment-hd{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.comment-author{font-size:11px;font-weight:700;color:var(--text1)}
+.comment-time{font-size:10px;color:var(--text3)}
+.comment-body{font-size:12px;color:var(--text2);line-height:1.6}
+/* ── Time log ── */
+.timelog-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px}
+.timelog-row:last-child{border-bottom:none}
+/* ── Dashboard ── */
+#dashboard{padding:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.dash-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:16px}
+.dash-stat .num{font-size:28px;font-weight:800;color:var(--text1);line-height:1}
+.dash-stat .lbl{font-size:11px;color:var(--text2);margin-top:4px}
+.dash-stat .delta{font-size:10px;margin-top:6px}
+.dash-wide{grid-column:span 2}
+.dash-full{grid-column:span 4}
+.dash-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:16px}
+.dash-section h4{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em}
+.proj-progress-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px}
+.proj-progress-row .name{flex:1;color:var(--text1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.proj-progress-row .pct{font-size:11px;color:var(--text2);width:35px;text-align:right}
+.mini-bar{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;min-width:60px}
+.mini-bar-fill{height:100%;border-radius:3px;background:var(--accent);transition:.3s}
+.due-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.due-row:last-child{border-bottom:none}
+.due-row .task-name{flex:1;color:var(--text1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ── Login ── */
+#login{display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg);flex-direction:column;gap:0}
+.login-card{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius2);padding:36px 40px;width:100%;max-width:400px}
+.login-logo{font-size:22px;font-weight:800;color:var(--accent2);margin-bottom:4px}
+.login-sub{font-size:12px;color:var(--text2);margin-bottom:28px}
+.login-err{background:var(--crit-dim);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius);padding:8px 12px;font-size:11px;color:var(--crit);margin-bottom:12px}
+/* ── Empty states ── */
+.empty{padding:48px 24px;text-align:center;color:var(--text3)}
+.empty .icon{font-size:36px;margin-bottom:10px}
+.empty h3{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.empty p{font-size:11px}
+/* ── Attachment ── */
+.attach-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px}
+.attach-row:last-child{border-bottom:none}
+.attach-icon{width:28px;height:28px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+/* ── Utils ── */
+.flex{display:flex}.gap4{gap:4px}.gap8{gap:8px}.gap12{gap:12px}.gap16{gap:16px}
+.ai-center{align-items:center}.jc-between{justify-content:space-between}
+.flex1{flex:1}.ml-auto{margin-left:auto}
+.muted{color:var(--text2)}.muted2{color:var(--text3)}
+.mono{font-family:'JetBrains Mono',monospace}
+.bold{font-weight:700}.semibold{font-weight:600}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.mb20{margin-bottom:20px}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.w100{width:100%}
+.divider{height:1px;background:var(--border);margin:12px 0}
+.tag{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;background:var(--bg3);border:1px solid var(--border);color:var(--text2)}
+.dot-indicator{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.page-hd{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--bg2);position:sticky;top:0;z-index:5}
+.page-hd h2{font-size:15px;font-weight:700;flex:1}
+.tooltip{position:relative}
+.tooltip:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border2);color:var(--text1);font-size:10px;padding:3px 7px;border-radius:4px;white-space:nowrap;z-index:50;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script>
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const ROTA_FOLDER='CloudOps-Rota';
+const PROJ_FOLDER='CloudOps-Projects';
+const CLIENT_ID='YOUR_GOOGLE_CLIENT_ID'; // replace with actual client ID
+const SCOPES='https://www.googleapis.com/auth/drive.file';
+
+const PRIORITIES=['Critical','High','Medium','Low'];
+const STATUSES=['To Do','In Progress','In Review','Done','Blocked'];
+const STATUS_KEYS={'To Do':'todo','In Progress':'inprogress','In Review':'review','Done':'done','Blocked':'blocked'};
+const STATUS_CSS={todo:'status-todo','In Progress':'status-inprogress','In Review':'status-review',Done:'status-done',Blocked:'status-blocked'};
+const PRI_CSS={Critical:'pri-critical',High:'pri-high',Medium:'pri-medium',Low:'pri-low'};
+const PRI_COLORS={Critical:'#ef4444',High:'#f97316',Medium:'#eab308',Low:'#22c55e'};
+const COL_COLORS=['#6366f1','#3b82f6','#eab308','#22c55e','#ef4444'];
+
+const FOLDER_COLORS=['#6366f1','#3b82f6','#22c55e','#f97316','#ef4444','#a855f7','#ec4899','#14b8a6'];
+
+// ── Drive helpers ─────────────────────────────────────────────────────────────
+const _cache={};
+let _projFolderId=null;
+
+async function driveGetFolder(token,name,parentId){
+  const q=parentId
+    ?encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`)
+    :encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
+    {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+  if(r.files?.length) return r.files[0].id;
+  const body={name,mimeType:'application/vnd.google-apps.folder'};
+  if(parentId) body.parents=[parentId];
+  const cr=await fetch('https://www.googleapis.com/drive/v3/files',{
+    method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify(body)}).then(r=>r.json());
+  return cr.id;
+}
+
+async function getProjFolder(token){
+  if(_projFolderId) return _projFolderId;
+  // Find CloudOps-Rota parent (may or may not exist)
+  const rotaQ=encodeURIComponent(`name='${ROTA_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const rotaR=await fetch(`https://www.googleapis.com/drive/v3/files?q=${rotaQ}&fields=files(id)`,
+    {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+  const rotaId=rotaR.files?.[0]?.id||null;
+  _projFolderId=await driveGetFolder(token,PROJ_FOLDER,rotaId);
+  return _projFolderId;
+}
+
+async function driveReadJson(token,fileId){
+  return fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&_t=${Date.now()}`,
+    {headers:{Authorization:`Bearer ${token}`,'Cache-Control':'no-cache'}}).then(r=>r.json());
+}
+
+async function driveWriteJson(token,name,data,parentId){
+  const pid=parentId||await getProjFolder(token);
+  const ck=`${pid}/${name}`;
+  let fileId=_cache[ck]||null;
+  if(!fileId){
+    const q=encodeURIComponent(`name='${name}' and '${pid}' in parents and trashed=false`);
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,
+      {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+    fileId=r.files?.[0]?.id||null;
+    if(fileId) _cache[ck]=fileId;
+  }
+  const body=JSON.stringify(data,null,2);
+  if(fileId){
+    const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+      {method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body}).then(r=>r.json());
+    if(!r.error){_cache[ck]=r.id||fileId;return r;}
+    delete _cache[ck]; fileId=null;
+  }
+  const form=new FormData();
+  form.append('metadata',new Blob([JSON.stringify({name,mimeType:'application/json',parents:[pid]})],{type:'application/json'}));
+  form.append('file',new Blob([body],{type:'application/json'}));
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+    {method:'POST',headers:{Authorization:`Bearer ${token}`},body:form}).then(r=>r.json());
+  if(r.id) _cache[ck]=r.id;
+  return r;
+}
+
+async function driveUploadFile(token,file,parentId){
+  const pid=parentId||await getProjFolder(token);
+  const form=new FormData();
+  form.append('metadata',new Blob([JSON.stringify({name:file.name,parents:[pid]})],{type:'application/json'}));
+  form.append('file',file);
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,size',
+    {method:'POST',headers:{Authorization:`Bearer ${token}`},body:form}).then(r=>r.json());
+  // Make readable
+  if(r.id) await fetch(`https://www.googleapis.com/drive/v3/files/${r.id}/permissions`,
+    {method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({role:'reader',type:'anyone'})}).catch(()=>{});
+  return r;
+}
+
+async function loadAllFromDrive(token){
+  const pid=await getProjFolder(token);
+  const q=encodeURIComponent(`'${pid}' in parents and trashed=false`);
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=50`,
+    {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+  const files={};
+  (r.files||[]).forEach(f=>{
+    const key=f.name.replace('.json','');
+    _cache[`${pid}/${f.name}`]=f.id;
+    files[key]=f.id;
+  });
+  const load=async(key)=>{
+    if(!files[key]) return null;
+    try{return await driveReadJson(token,files[key]);}catch{return null;}
+  };
+  const [projects,tasks,comments,timelog,attachments]=await Promise.all(
+    ['projects','tasks','comments','timelog','attachments'].map(load));
+  return{projects:projects||[],tasks:tasks||[],comments:comments||[],timelog:timelog||[],attachments:attachments||[]};
+}
+
+// Read users.json from Rota folder
+async function loadRotaUsers(token){
+  try{
+    const q=encodeURIComponent(`name='${ROTA_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const fr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,
+      {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+    const rotaId=fr.files?.[0]?.id;
+    if(!rotaId) return null;
+    const uq=encodeURIComponent(`name='users.json' and '${rotaId}' in parents and trashed=false`);
+    const ur=await fetch(`https://www.googleapis.com/drive/v3/files?q=${uq}&fields=files(id)`,
+      {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.json());
+    const uid=ur.files?.[0]?.id;
+    if(!uid) return null;
+    return await driveReadJson(token,uid);
+  }catch{return null;}
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+const uid=()=>'id_'+Math.random().toString(36).slice(2,10);
+const now=()=>new Date().toISOString();
+const fmt=(iso)=>{if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
+const fmtDt=(iso)=>{if(!iso)return'';const d=new Date(iso);return d.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});};
+const isOverdue=(due)=>{if(!due)return false;return new Date(due)<new Date()&&due};
+const initials=(name='')=>name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const avatarColor=(id='')=>{const colors=['#6366f1','#3b82f6','#22c55e','#f97316','#ef4444','#a855f7','#ec4899','#14b8a6'];let h=0;for(const c of id)h=(h*31+c.charCodeAt(0))%colors.length;return colors[h];};
+const taskId=(project)=>{const prefix=(project?.name||'TASK').slice(0,3).toUpperCase();return`${prefix}-${Math.floor(Math.random()*9000)+1000}`;};
+const pluralHours=(h)=>`${h}h`;
+
+// ── Avatar component ──────────────────────────────────────────────────────────
+function Avatar({user,size=24,style={}}){
+  if(!user) return null;
+  const bg=avatarColor(user.id||user.name);
+  return React.createElement('div',{
+    className:'k-avatar tooltip',
+    'data-tip':user.name,
+    style:{width:size,height:size,background:bg,fontSize:size*0.35,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,color:'#fff',flexShrink:0,border:`2px solid var(--bg3)`,marginLeft:0,...style}
+  },initials(user.name));
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+function App(){
+  const [token,setToken]=useState(null);
+  const [currentUser,setCurrentUser]=useState(null);
+  const [users,setUsers]=useState([]);
+  const [projects,setProjects]=useState([]);
+  const [tasks,setTasks]=useState([]);
+  const [comments,setComments]=useState([]);
+  const [timelog,setTimelog]=useState([]);
+  const [attachments,setAttachments]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [loadMsg,setLoadMsg]=useState('');
+  const [view,setView]=useState('board'); // board|list|dashboard
+  const [selFolder,setSelFolder]=useState(null);
+  const [selProject,setSelProject]=useState(null);
+  const [selTask,setSelTask]=useState(null);
+  const [openFolders,setOpenFolders]=useState({});
+  const [modal,setModal]=useState(null); // null|'newFolder'|'newProject'|'newTask'|'editTask'|'editProject'|'logTime'|'newCol'
+  const [searchQ,setSearchQ]=useState('');
+  const driveLoaded=useRef(false);
+
+  // ── Drive save helpers ────────────────────────────────────────────────────
+  const save=useCallback(async(key,data)=>{
+    if(!token||!driveLoaded.current) return;
+    driveWriteJson(token,`${key}.json`,data).catch(e=>console.error('Save error',key,e));
+  },[token]);
+
+  useEffect(()=>{if(driveLoaded.current)save('projects',projects);},[projects]);
+  useEffect(()=>{if(driveLoaded.current)save('tasks',tasks);},[tasks]);
+  useEffect(()=>{if(driveLoaded.current)save('comments',comments);},[comments]);
+  useEffect(()=>{if(driveLoaded.current)save('timelog',timelog);},[timelog]);
+  useEffect(()=>{if(driveLoaded.current)save('attachments',attachments);},[attachments]);
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  const connectDrive=useCallback((onToken)=>{
+    const s=document.createElement('script');
+    s.src='https://accounts.google.com/gsi/client';
+    s.onload=()=>{
+      window.google.accounts.oauth2.initTokenClient({
+        client_id:CLIENT_ID,scope:SCOPES,
+        callback:(resp)=>{if(resp.error)return;onToken(resp.access_token);}
+      }).requestAccessToken();
+    };
+    document.head.appendChild(s);
+  },[]);
+
+  const handleLogin=useCallback(async(trigram,pass)=>{
+    setLoading(true);setLoadMsg('Connecting to Google Drive…');
+    connectDrive(async(tok)=>{
+      setToken(tok);
+      setLoadMsg('Loading team data…');
+      try{
+        const rotaUsers=await loadRotaUsers(tok);
+        const userList=rotaUsers||[];
+        setUsers(userList);
+        const found=userList.find(u=>u.id?.toLowerCase()===trigram.toLowerCase());
+        if(!found){setLoading(false);return{error:'Trigram not found. Check your ID.'};}
+        if(found.password&&found.password!==pass){setLoading(false);return{error:'Incorrect password.'};}
+        setCurrentUser(found);
+        setLoadMsg('Loading projects…');
+        const data=await loadAllFromDrive(tok);
+        setProjects(data.projects);
+        setTasks(data.tasks);
+        setComments(data.comments);
+        setTimelog(data.timelog);
+        setAttachments(data.attachments);
+        driveLoaded.current=true;
+        // Auto-select first folder
+        if(data.projects.length){
+          const firstFolder=data.projects.find(p=>p.type==='folder');
+          if(firstFolder){setSelFolder(firstFolder.id);setOpenFolders({[firstFolder.id]:true});}
+        }
+        setLoading(false);
+      }catch(e){
+        console.error(e);setLoading(false);
+        return{error:'Failed to load data. Please try again.'};
+      }
+    });
+  },[connectDrive]);
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+  const folders=useMemo(()=>projects.filter(p=>p.type==='folder'),[projects]);
+  const getProjects=useCallback((folderId)=>projects.filter(p=>p.type==='project'&&p.folderId===folderId),[projects]);
+  const getTasks=useCallback((projectId,parentId=null)=>tasks.filter(t=>t.projectId===projectId&&(parentId?t.parentId===parentId:!t.parentId)),[tasks]);
+  const getComments=useCallback((taskId)=>comments.filter(c=>c.taskId===taskId),[comments]);
+  const getTimelog=useCallback((taskId)=>timelog.filter(t=>t.taskId===taskId),[timelog]);
+  const getAttachments=useCallback((taskId)=>attachments.filter(a=>a.taskId===taskId),[attachments]);
+
+  const allProjectTasks=useMemo(()=>selProject?tasks.filter(t=>t.projectId===selProject.id&&!t.parentId):[],[tasks,selProject]);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  const createFolder=(name,color)=>{
+    const f={id:uid(),type:'folder',name,color,created:now(),createdBy:currentUser?.id};
+    setProjects(p=>[...p,f]);
+    setOpenFolders(o=>({...o,[f.id]:true}));
+    setSelFolder(f.id);
+    setModal(null);
+  };
+
+  const createProject=(name,folderId,color,desc)=>{
+    const p={id:uid(),type:'project',name,folderId,color,desc,created:now(),createdBy:currentUser?.id,
+      columns:['To Do','In Progress','In Review','Done']};
+    setProjects(prev=>[...prev,p]);
+    setSelProject(p);
+    setModal(null);
+  };
+
+  const createTask=(data)=>{
+    const t={id:uid(),...data,created:now(),createdBy:currentUser?.id,status:'To Do',subtasksDone:0};
+    setTasks(prev=>[...prev,t]);
+    setModal(null);
+    return t;
+  };
+
+  const updateTask=(id,patch)=>{
+    setTasks(prev=>prev.map(t=>t.id===id?{...t,...patch,updated:now()}:t));
+    if(selTask?.id===id) setSelTask(prev=>({...prev,...patch,updated:now()}));
+  };
+
+  const deleteTask=(id)=>{
+    setTasks(prev=>prev.filter(t=>t.id!==id&&t.parentId!==id));
+    setComments(prev=>prev.filter(c=>c.taskId!==id));
+    setTimelog(prev=>prev.filter(t=>t.taskId!==id));
+    setAttachments(prev=>prev.filter(a=>a.taskId!==id));
+    if(selTask?.id===id) setSelTask(null);
+  };
+
+  const addComment=(taskId,body)=>{
+    const c={id:uid(),taskId,body,author:currentUser?.id,authorName:currentUser?.name,created:now()};
+    setComments(prev=>[...prev,c]);
+  };
+
+  const logTime=(taskId,hours,note,date)=>{
+    const entry={id:uid(),taskId,hours:+hours,note,date,author:currentUser?.id,authorName:currentUser?.name,logged:now()};
+    setTimelog(prev=>[...prev,entry]);
+    setModal(null);
+  };
+
+  const addAttachment=async(taskId,file)=>{
+    if(!token) return;
+    const pid=await getProjFolder(token);
+    const result=await driveUploadFile(token,file,pid);
+    if(result.id){
+      const a={id:uid(),taskId,fileId:result.id,name:result.name,url:result.webViewLink,size:result.size,uploaded:now(),uploadedBy:currentUser?.id};
+      setAttachments(prev=>[...prev,a]);
+    }
+  };
+
+  const addColumn=(projectId,colName)=>{
+    setProjects(prev=>prev.map(p=>p.id===projectId?{...p,columns:[...(p.columns||[]),colName]}:p));
+    if(selProject?.id===projectId) setSelProject(prev=>({...prev,columns:[...(prev.columns||[]),colName]}));
+    setModal(null);
+  };
+
+  const moveTask=(taskId,newStatus)=>updateTask(taskId,{status:newStatus});
+
+  // ── Filtered tasks ────────────────────────────────────────────────────────
+  const filteredTasks=useMemo(()=>{
+    if(!searchQ) return allProjectTasks;
+    const q=searchQ.toLowerCase();
+    return allProjectTasks.filter(t=>t.title?.toLowerCase().includes(q)||t.desc?.toLowerCase().includes(q)||t.taskId?.toLowerCase().includes(q));
+  },[allProjectTasks,searchQ]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if(!currentUser) return React.createElement(LoginScreen,{onLogin:handleLogin,loading,loadMsg});
+
+  const selectedFolder=folders.find(f=>f.id===selFolder);
+  const columns=selProject?.columns||['To Do','In Progress','In Review','Done'];
+
+  // breadcrumb
+  const bc=[];
+  if(selectedFolder) bc.push(selectedFolder.name);
+  if(selProject) bc.push(selProject.name);
+
+  return React.createElement('div',{id:'app'},
+    // ── Topbar ──────────────────────────────────────────────────────────────
+    React.createElement('div',{id:'topbar'},
+      React.createElement('div',{className:'tb-logo'},'CloudOps ',React.createElement('span',null,'Projects')),
+      React.createElement('div',{className:'tb-breadcrumb'},
+        bc.map((b,i)=>React.createElement(React.Fragment,{key:i},
+          i>0&&React.createElement('span',{className:'tb-sep'},'/'),
+          React.createElement('b',null,b)
+        ))
+      ),
+      selProject&&React.createElement(React.Fragment,null,
+        React.createElement('button',{className:`tb-view-btn${view==='board'?' active':''}`,onClick:()=>setView('board')},'⊞ Board'),
+        React.createElement('button',{className:`tb-view-btn${view==='list'?' active':''}`,onClick:()=>setView('list')},'☰ List'),
+      ),
+      React.createElement('button',{className:`tb-view-btn${view==='dashboard'?' active':''}`,onClick:()=>{setSelProject(null);setView('dashboard')}},'📊 Dashboard'),
+      React.createElement('input',{className:'tb-search',placeholder:'Search tasks…',value:searchQ,onChange:e=>setSearchQ(e.target.value)}),
+      React.createElement('div',{className:'tb-avatar',style:{background:avatarColor(currentUser.id)},title:currentUser.name},initials(currentUser.name)),
+    ),
+    // ── Body ─────────────────────────────────────────────────────────────────
+    React.createElement('div',{id:'body'},
+      // Sidebar
+      React.createElement('div',{id:'sidebar'},
+        React.createElement('div',{style:{flex:1,overflowY:'auto'}},
+          React.createElement('div',{className:'sb-section'},
+            React.createElement('div',{className:'sb-label'},'Workspace'),
+            folders.map(f=>{
+              const isOpen=openFolders[f.id];
+              const projs=getProjects(f.id);
+              return React.createElement(React.Fragment,{key:f.id},
+                React.createElement('div',{
+                  className:`sb-folder${isOpen?' open':''}`,
+                  onClick:()=>{
+                    setOpenFolders(o=>({...o,[f.id]:!o[f.id]}));
+                    setSelFolder(f.id);
+                  }
+                },
+                  React.createElement('span',{className:'chevron'},'▶'),
+                  React.createElement('span',{style:{width:10,height:10,borderRadius:3,background:f.color,flexShrink:0,display:'inline-block'}}),
+                  React.createElement('span',{style:{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},f.name),
+                ),
+                isOpen&&React.createElement(React.Fragment,null,
+                  projs.map(p=>React.createElement('div',{
+                    key:p.id,
+                    className:`sb-proj${selProject?.id===p.id?' active':''}`,
+                    onClick:()=>{setSelProject(p);setView('board');setSearchQ('');}
+                  },
+                    React.createElement('div',{className:'dot',style:{background:p.color||f.color}}),
+                    React.createElement('span',{style:{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.name),
+                    React.createElement('span',{style:{fontSize:10,color:'var(--text3)',marginLeft:'auto',flexShrink:0}},
+                      tasks.filter(t=>t.projectId===p.id&&!t.parentId).length
+                    )
+                  )),
+                  React.createElement('button',{className:'sb-new-btn',onClick:()=>{setSelFolder(f.id);setModal('newProject');}},
+                    '+ New project')
+                )
+              );
+            }),
+          ),
+          React.createElement('button',{className:'sb-new-btn',style:{margin:'8px 12px'},onClick:()=>setModal('newFolder')},
+            '+ New folder'),
+        ),
+        // Sidebar bottom — user info
+        React.createElement('div',{className:'sb-bottom'},
+          React.createElement('div',{className:'flex ai-center gap8'},
+            React.createElement(Avatar,{user:currentUser,size:28}),
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontSize:11,fontWeight:700,color:'var(--text1)'}},currentUser.name),
+              React.createElement('div',{className:'mono muted2',style:{fontSize:9}},currentUser.id),
+            )
+          )
+        )
+      ),
+      // Main
+      React.createElement('div',{id:'main'},
+        view==='dashboard'
+          ? React.createElement(Dashboard,{projects,tasks,timelog,users,setSelProject,setView})
+          : !selProject
+          ? React.createElement('div',{className:'empty',style:{paddingTop:80}},
+              React.createElement('div',{className:'icon'},'📁'),
+              React.createElement('h3',null,'Select a project'),
+              React.createElement('p',null,'Choose a project from the sidebar or create a new one.')
+            )
+          : view==='board'
+          ? React.createElement(BoardView,{
+              project:selProject,columns,tasks:filteredTasks,users,currentUser,
+              onTaskClick:(t)=>setSelTask(t),
+              onMoveTask:moveTask,
+              onAddTask:(col)=>setModal({type:'newTask',defaultStatus:col}),
+              onAddColumn:()=>setModal('newCol'),
+              getTasks,
+            })
+          : React.createElement(ListView,{
+              project:selProject,tasks:filteredTasks,users,currentUser,
+              onTaskClick:(t)=>setSelTask(t),
+              onAddTask:()=>setModal({type:'newTask'}),
+              getTasks,
+            })
+      )
+    ),
+    // ── Task detail panel (as overlay) ───────────────────────────────────────
+    selTask&&React.createElement(TaskDetail,{
+      task:selTask,
+      tasks,
+      users,
+      currentUser,
+      project:selProject,
+      comments:getComments(selTask.id),
+      timelog:getTimelog(selTask.id),
+      attachments:getAttachments(selTask.id),
+      subtasks:getTasks(selTask.projectId,selTask.id),
+      onClose:()=>setSelTask(null),
+      onUpdate:updateTask,
+      onDelete:deleteTask,
+      onComment:addComment,
+      onLogTime:(h,n,d)=>logTime(selTask.id,h,n,d),
+      onAddSubtask:(data)=>createTask({...data,projectId:selTask.projectId,parentId:selTask.id}),
+      onAttach:(f)=>addAttachment(selTask.id,f),
+      token,
+    }),
+    // ── Modals ───────────────────────────────────────────────────────────────
+    modal==='newFolder'&&React.createElement(NewFolderModal,{onClose:()=>setModal(null),onCreate:createFolder}),
+    modal==='newProject'&&React.createElement(NewProjectModal,{folderId:selFolder,onClose:()=>setModal(null),onCreate:createProject}),
+    (modal?.type==='newTask'||modal==='newTask')&&React.createElement(NewTaskModal,{
+      project:selProject,users,currentUser,
+      defaultStatus:modal?.defaultStatus||'To Do',
+      onClose:()=>setModal(null),
+      onCreate:createTask,
+    }),
+    modal==='newCol'&&React.createElement(NewColumnModal,{onClose:()=>setModal(null),
+      onCreate:(name)=>addColumn(selProject.id,name)}),
+  );
+}
+
+// ── Login Screen ──────────────────────────────────────────────────────────────
+function LoginScreen({onLogin,loading,loadMsg}){
+  const [trigram,setTrigram]=useState('');
+  const [pass,setPass]=useState('');
+  const [err,setErr]=useState('');
+  const [busy,setBusy]=useState(false);
+
+  const handle=async()=>{
+    if(!trigram){setErr('Enter your trigram ID.');return;}
+    setBusy(true);setErr('');
+    const result=await onLogin(trigram.toUpperCase(),pass);
+    if(result?.error){setErr(result.error);setBusy(false);}
+  };
+
+  return React.createElement('div',{id:'login'},
+    React.createElement('div',{className:'login-card'},
+      React.createElement('div',{className:'login-logo'},'CloudOps Projects'),
+      React.createElement('div',{className:'login-sub'},'Sign in with your team trigram ID'),
+      err&&React.createElement('div',{className:'login-err'},err),
+      loading&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:16,fontSize:12,color:'var(--text2)'}},
+        React.createElement('div',{className:'spinner'}),loadMsg),
+      React.createElement('div',{className:'fg'},
+        React.createElement('label',null,'Trigram ID'),
+        React.createElement('input',{className:'input',placeholder:'e.g. MBA47',value:trigram,
+          onChange:e=>setTrigram(e.target.value.toUpperCase()),
+          onKeyDown:e=>e.key==='Enter'&&handle()})
+      ),
+      React.createElement('div',{className:'fg'},
+        React.createElement('label',null,'Password'),
+        React.createElement('input',{className:'input',type:'password',placeholder:'••••••',value:pass,
+          onChange:e=>setPass(e.target.value),
+          onKeyDown:e=>e.key==='Enter'&&handle()})
+      ),
+      React.createElement('button',{className:'btn btn-primary w100',onClick:handle,disabled:busy||loading},
+        busy||loading?React.createElement('span',{className:'spinner'}):null,'Sign In')
+    )
+  );
+}
+
+// ── Board View ────────────────────────────────────────────────────────────────
+function BoardView({project,columns,tasks,users,currentUser,onTaskClick,onMoveTask,onAddTask,onAddColumn,getTasks}){
+  const byCol=useMemo(()=>{
+    const m={};
+    columns.forEach(c=>{m[c]=tasks.filter(t=>t.status===c);});
+    return m;
+  },[columns,tasks]);
+
+  const colColor=(i)=>COL_COLORS[i%COL_COLORS.length];
+
+  return React.createElement('div',{id:'board'},
+    columns.map((col,ci)=>React.createElement('div',{key:col,className:'k-col'},
+      React.createElement('div',{className:'k-col-hd'},
+        React.createElement('div',{className:'k-col-title'},col),
+        React.createElement('div',{className:'k-col-count'},byCol[col]?.length||0),
+        React.createElement('button',{className:'btn btn-ghost btn-icon',style:{marginLeft:'auto'},
+          onClick:()=>onAddTask(col),title:'Add task'},'+'),
+      ),
+      React.createElement('div',{className:'k-col-bar',style:{background:colColor(ci)}}),
+      React.createElement('div',{className:'k-cards'},
+        (byCol[col]||[]).map(t=>React.createElement(KanbanCard,{key:t.id,task:t,users,getTasks,
+          onClick:()=>onTaskClick(t),
+          onMove:(s)=>onMoveTask(t.id,s),columns,
+        })),
+        React.createElement('button',{className:'k-add-card',onClick:()=>onAddTask(col)},'+ Add task'),
+      ),
+    )),
+    React.createElement('div',{style:{paddingTop:8}},
+      React.createElement('button',{
+        className:'k-add-card',
+        style:{width:200,textAlign:'center'},
+        onClick:onAddColumn,
+      },'+ Add column'),
+    ),
+  );
+}
+
+function KanbanCard({task,users,getTasks,onClick,onMove,columns}){
+  const assignee=users.find(u=>u.id===task.assigneeId);
+  const subtasks=getTasks(task.projectId,task.id);
+  const doneSubs=subtasks.filter(s=>s.status==='Done').length;
+  const pct=subtasks.length?Math.round(doneSubs/subtasks.length*100):0;
+  const over=isOverdue(task.dueDate)&&task.status!=='Done';
+
+  return React.createElement('div',{className:'k-card',onClick,
+    style:{borderLeft:`3px solid ${PRI_COLORS[task.priority]||'var(--border2)'}`}},
+    React.createElement('div',{className:'k-card-title'},task.title),
+    subtasks.length>0&&React.createElement(React.Fragment,null,
+      React.createElement('div',{className:'k-progress'},
+        React.createElement('div',{className:'k-progress-bar',style:{width:`${pct}%`}})),
+      React.createElement('div',{style:{fontSize:10,color:'var(--text3)',marginBottom:4}},`${doneSubs}/${subtasks.length} subtasks`),
+    ),
+    React.createElement('div',{className:'k-card-meta'},
+      task.priority&&React.createElement('span',{className:`pri ${PRI_CSS[task.priority]}`},task.priority),
+      task.dueDate&&React.createElement('span',{className:`k-card-due${over?' overdue':''}`},fmt(task.dueDate)),
+      React.createElement('span',{className:'k-card-id mono'},task.taskId),
+      assignee&&React.createElement('div',{style:{marginLeft:'auto'}},
+        React.createElement(Avatar,{user:assignee,size:20,style:{marginLeft:0}})),
+    ),
+  );
+}
+
+// ── List View ─────────────────────────────────────────────────────────────────
+function ListView({project,tasks,users,onTaskClick,onAddTask,getTasks}){
+  const grouped=useMemo(()=>{
+    const m={};
+    ['To Do','In Progress','In Review','Done','Blocked'].forEach(s=>{
+      const g=tasks.filter(t=>t.status===s);
+      if(g.length) m[s]=g;
+    });
+    return m;
+  },[tasks]);
+
+  return React.createElement('div',{id:'listview'},
+    React.createElement('div',{className:'page-hd'},
+      React.createElement('h2',null,project.name),
+      React.createElement('button',{className:'btn btn-primary btn-sm',onClick:onAddTask},'+ New Task'),
+    ),
+    React.createElement('div',{className:'lv-hd'},
+      React.createElement('div'),
+      React.createElement('div',null,'Task'),
+      React.createElement('div',null,'Assignee'),
+      React.createElement('div',null,'Priority'),
+      React.createElement('div',null,'Due Date'),
+      React.createElement('div',null,'Status'),
+      React.createElement('div',null,'Time Logged'),
+    ),
+    Object.entries(grouped).map(([status,grpTasks])=>React.createElement(React.Fragment,{key:status},
+      React.createElement('div',{className:'lv-group-hd'},
+        React.createElement('span',{className:`status ${STATUS_CSS[status]||'status-todo'}`},status),
+        React.createElement('span',{className:'g-count'},grpTasks.length,' tasks'),
+      ),
+      grpTasks.map(t=>{
+        const assignee=users.find(u=>u.id===t.assigneeId);
+        const subs=getTasks(t.projectId,t.id);
+        return React.createElement('div',{key:t.id,className:'lv-row',onClick:()=>onTaskClick(t)},
+          React.createElement('div',{className:`cb${t.status==='Done'?' done':''}`}),
+          React.createElement('div',{className:'title'},
+            React.createElement('span',null,t.title),
+            subs.length>0&&React.createElement('span',{className:'sub-count'},`${subs.filter(s=>s.status==='Done').length}/${subs.length}`),
+          ),
+          React.createElement('div',null,assignee
+            ?React.createElement('div',{className:'flex ai-center gap4'},
+                React.createElement(Avatar,{user:assignee,size:18}),
+                React.createElement('span',{style:{fontSize:11,color:'var(--text2)'}},assignee.name.split(' ')[0]))
+            :React.createElement('span',{style:{color:'var(--text3)',fontSize:11}},'Unassigned')),
+          React.createElement('div',null,t.priority?React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority):React.createElement('span',{style:{color:'var(--text3)',fontSize:11}},'—')),
+          React.createElement('div',{style:{fontSize:11,color:isOverdue(t.dueDate)&&t.status!=='Done'?'var(--crit)':'var(--text2)'}},fmt(t.dueDate)),
+          React.createElement('div',null,React.createElement('span',{className:`status ${STATUS_CSS[t.status]||'status-todo'}`},t.status)),
+          React.createElement('div',{style:{fontSize:11,color:'var(--text2)'}},
+            t.totalHours?`${t.totalHours}h`:'—'),
+        );
+      })
+    )),
+    tasks.length===0&&React.createElement('div',{className:'empty'},
+      React.createElement('div',{className:'icon'},'📋'),
+      React.createElement('h3',null,'No tasks yet'),
+      React.createElement('p',null,'Create your first task to get started.'),
+    ),
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function Dashboard({projects,tasks,timelog,users,setSelProject,setView}){
+  const allProjects=projects.filter(p=>p.type==='project');
+  const allTasks=tasks.filter(t=>!t.parentId);
+  const today=new Date();today.setHours(0,0,0,0);
+  const weekEnd=new Date(today);weekEnd.setDate(weekEnd.getDate()+7);
+
+  const overdue=allTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<today&&t.status!=='Done');
+  const dueThisWeek=allTasks.filter(t=>t.dueDate&&new Date(t.dueDate)>=today&&new Date(t.dueDate)<=weekEnd&&t.status!=='Done');
+  const done=allTasks.filter(t=>t.status==='Done');
+  const totalHours=timelog.reduce((s,e)=>s+(+e.hours||0),0);
+
+  // Per-user time
+  const userHours={};
+  timelog.forEach(e=>{userHours[e.author]=(userHours[e.author]||0)+(+e.hours||0);});
+
+  // Project progress
+  const projProgress=allProjects.map(p=>{
+    const pts=tasks.filter(t=>t.projectId===p.id&&!t.parentId);
+    const done=pts.filter(t=>t.status==='Done').length;
+    const pct=pts.length?Math.round(done/pts.length*100):0;
+    return{...p,total:pts.length,done,pct};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  return React.createElement('div',{id:'dashboard'},
+    // Stats row
+    React.createElement('div',{className:'dash-stat'},
+      React.createElement('div',{className:'num'},allProjects.length),
+      React.createElement('div',{className:'lbl'},'Projects'),
+    ),
+    React.createElement('div',{className:'dash-stat'},
+      React.createElement('div',{className:'num'},allTasks.length),
+      React.createElement('div',{className:'lbl'},'Total Tasks'),
+    ),
+    React.createElement('div',{className:'dash-stat'},
+      React.createElement('div',{className:'num',style:{color:'var(--crit)'}},overdue.length),
+      React.createElement('div',{className:'lbl'},'Overdue'),
+    ),
+    React.createElement('div',{className:'dash-stat'},
+      React.createElement('div',{className:'num',style:{color:'var(--green)'}},done.length),
+      React.createElement('div',{className:'lbl'},'Completed'),
+    ),
+    // Due this week
+    React.createElement('div',{className:'dash-section dash-wide'},
+      React.createElement('h4',null,'Due This Week'),
+      dueThisWeek.length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},
+        '🎉 Nothing due this week.'),
+      dueThisWeek.slice(0,8).map(t=>React.createElement('div',{key:t.id,className:'due-row',
+        style:{cursor:'pointer'},
+        onClick:()=>{const p=allProjects.find(p=>p.id===t.projectId);if(p){setSelProject(p);setView('list');}}},
+        React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority||'—'),
+        React.createElement('span',{className:'task-name'},t.title),
+        React.createElement('span',{style:{fontSize:11,color:'var(--text2)',flexShrink:0}},fmt(t.dueDate)),
+      )),
+    ),
+    // Overdue
+    React.createElement('div',{className:'dash-section dash-wide'},
+      React.createElement('h4',null,'Overdue'),
+      overdue.length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},'✅ Nothing overdue.'),
+      overdue.slice(0,8).map(t=>React.createElement('div',{key:t.id,className:'due-row',
+        style:{cursor:'pointer'},
+        onClick:()=>{const p=allProjects.find(p=>p.id===t.projectId);if(p){setSelProject(p);setView('list');}}},
+        React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority||'—'),
+        React.createElement('span',{className:'task-name'},t.title),
+        React.createElement('span',{style:{fontSize:11,color:'var(--crit)',flexShrink:0}},fmt(t.dueDate)),
+      )),
+    ),
+    // Project progress
+    React.createElement('div',{className:'dash-section dash-wide'},
+      React.createElement('h4',null,'Project Progress'),
+      projProgress.length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},'No projects yet.'),
+      projProgress.map(p=>React.createElement('div',{key:p.id,className:'proj-progress-row',
+        style:{cursor:'pointer'},onClick:()=>{setSelProject(p);setView('board');}},
+        React.createElement('div',{className:'dot-indicator',style:{background:p.color||'var(--accent)'}}),
+        React.createElement('div',{className:'name'},p.name),
+        React.createElement('div',{className:'mini-bar'},
+          React.createElement('div',{className:'mini-bar-fill',style:{width:`${p.pct}%`}})),
+        React.createElement('div',{className:'pct'},`${p.pct}%`),
+        React.createElement('div',{style:{fontSize:10,color:'var(--text3)',width:60,textAlign:'right'}},`${p.done}/${p.total} tasks`),
+      )),
+    ),
+    // Time per person
+    React.createElement('div',{className:'dash-section dash-wide'},
+      React.createElement('h4',null,'Time Logged by Engineer'),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}},
+        users.filter(u=>userHours[u.id]).map(u=>React.createElement('div',{key:u.id,
+          style:{background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:'var(--radius)',padding:'10px 12px',display:'flex',alignItems:'center',gap:10}},
+          React.createElement(Avatar,{user:u,size:28}),
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontSize:12,fontWeight:600,color:'var(--text1)'}},u.name.split(' ')[0]),
+            React.createElement('div',{style:{fontSize:11,color:'var(--accent2)',fontWeight:700}},`${userHours[u.id]}h logged`),
+          )
+        )),
+        users.filter(u=>!userHours[u.id]).length>0&&
+          React.createElement('div',{style:{fontSize:11,color:'var(--text3)',padding:'10px 0'}},
+            `${users.filter(u=>!userHours[u.id]).length} engineers with no time logged.`),
+      ),
+      totalHours>0&&React.createElement('div',{style:{marginTop:12,fontSize:12,color:'var(--text2)'}},
+        `Total: `,React.createElement('b',{style:{color:'var(--text1)'}},`${totalHours}h`),` logged across all projects.`),
+    ),
+  );
+}
+
+// ── Task Detail ───────────────────────────────────────────────────────────────
+function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attachments,subtasks,onClose,onUpdate,onDelete,onComment,onLogTime,onAddSubtask,onAttach,token}){
+  const [commentText,setCommentText]=useState('');
+  const [newSub,setNewSub]=useState('');
+  const [showTimeLog,setShowTimeLog]=useState(false);
+  const [timeH,setTimeH]=useState('');
+  const [timeNote,setTimeNote]=useState('');
+  const [timeDate,setTimeDate]=useState(new Date().toISOString().slice(0,10));
+  const [tab,setTab]=useState('details'); // details|comments|time|attachments
+  const fileRef=useRef(null);
+  const totalLogged=timelog.reduce((s,e)=>s+(+e.hours||0),0);
+
+  const addSub=()=>{
+    if(!newSub.trim()) return;
+    onAddSubtask({title:newSub.trim(),taskId:'sub_'+uid(),projectId:task.projectId,parentId:task.id,status:'To Do'});
+    setNewSub('');
+  };
+
+  const postComment=()=>{
+    if(!commentText.trim()) return;
+    onComment(task.id,commentText.trim());
+    setCommentText('');
+  };
+
+  const handleLogTime=()=>{
+    if(!timeH||+timeH<=0) return;
+    onLogTime(timeH,timeNote,timeDate);
+    // update totalHours on task
+    const newTotal=(+task.totalHours||0)+(+timeH);
+    onUpdate(task.id,{totalHours:newTotal});
+    setTimeH('');setTimeNote('');setShowTimeLog(false);
+  };
+
+  const TABS=[['details','Details'],['comments',`Comments (${comments.length})`],['time',`Time (${totalLogged}h)`],['attachments',`Files (${attachments.length})`]];
+
+  const TBtn=(id,label)=>React.createElement('button',{
+    key:id,
+    onClick:()=>setTab(id),
+    style:{padding:'6px 12px',border:'none',background:'transparent',color:tab===id?'var(--accent2)':'var(--text2)',
+      fontWeight:tab===id?700:400,fontSize:12,cursor:'pointer',borderBottom:`2px solid ${tab===id?'var(--accent)':'transparent'}`,transition:'.15s'}
+  },label);
+
+  return React.createElement('div',{className:'modal-overlay',onClick:(e)=>{if(e.target.className==='modal-overlay')onClose();}},
+    React.createElement('div',{className:'modal modal-lg',style:{maxWidth:920,height:'85vh'}},
+      // Header
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('span',{className:'mono muted2',style:{fontSize:10}},task.taskId),
+        React.createElement('h3',{style:{flex:1}},task.title),
+        React.createElement('button',{className:'btn btn-danger btn-xs',onClick:()=>{if(window.confirm('Delete this task?')){onDelete(task.id);onClose();}}},
+          '🗑 Delete'),
+        React.createElement('button',{className:'btn btn-ghost btn-icon',onClick:onClose},'✕'),
+      ),
+      // Tabs
+      React.createElement('div',{style:{display:'flex',borderBottom:'1px solid var(--border)',padding:'0 20px',background:'var(--bg2)',flexShrink:0}},
+        TABS.map(([id,label])=>TBtn(id,label))
+      ),
+      // Content
+      React.createElement('div',{style:{display:'flex',flex:1,overflow:'hidden'}},
+        // Main content
+        React.createElement('div',{className:'task-main'},
+          tab==='details'&&React.createElement(React.Fragment,null,
+            // Title
+            React.createElement('input',{className:'task-title-input',value:task.title,
+              onChange:e=>onUpdate(task.id,{title:e.target.value}),placeholder:'Task title'}),
+            // Description
+            React.createElement('div',{className:'mb16'},
+              React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:6}},'Description'),
+              React.createElement('textarea',{className:'task-desc',
+                value:task.desc||'',rows:5,
+                onChange:e=>onUpdate(task.id,{desc:e.target.value}),
+                placeholder:'Add a description…'}),
+            ),
+            // Subtasks
+            React.createElement('div',{className:'mb16'},
+              React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:8}},
+                `Subtasks (${subtasks.filter(s=>s.status==='Done').length}/${subtasks.length})`),
+              subtasks.length>0&&React.createElement('div',{style:{border:'1px solid var(--border)',borderRadius:'var(--radius)',marginBottom:8,overflow:'hidden'}},
+                subtasks.map((s,i)=>React.createElement('div',{key:s.id,className:'subtask-row',style:{padding:'7px 10px'}},
+                  React.createElement('div',{
+                    className:`cb${s.status==='Done'?' done':''}`,
+                    onClick:()=>onUpdate(s.id,{status:s.status==='Done'?'To Do':'Done'}),
+                  }),
+                  React.createElement('span',{className:`subtask-title${s.status==='Done'?' done':''}`},s.title),
+                  React.createElement('button',{className:'btn btn-ghost btn-xs',style:{marginLeft:'auto',color:'var(--crit)'},
+                    onClick:()=>onDelete(s.id)},'✕'),
+                ))
+              ),
+              React.createElement('div',{className:'flex gap8'},
+                React.createElement('input',{className:'input',placeholder:'New subtask…',
+                  value:newSub,onChange:e=>setNewSub(e.target.value),
+                  onKeyDown:e=>e.key==='Enter'&&addSub(),style:{flex:1}}),
+                React.createElement('button',{className:'btn btn-secondary',onClick:addSub},'Add'),
+              ),
+            ),
+          ),
+          tab==='comments'&&React.createElement(React.Fragment,null,
+            comments.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12,padding:'16px 0'}},
+              'No comments yet. Be the first to comment.'),
+            comments.map(c=>React.createElement('div',{key:c.id,className:'comment'},
+              React.createElement('div',{className:'comment-hd'},
+                React.createElement(Avatar,{user:{id:c.author,name:c.authorName||c.author},size:22}),
+                React.createElement('span',{className:'comment-author'},c.authorName||c.author),
+                React.createElement('span',{className:'comment-time'},fmtDt(c.created)),
+              ),
+              React.createElement('div',{className:'comment-body'},c.body),
+            )),
+            React.createElement('div',{style:{marginTop:16}},
+              React.createElement('textarea',{className:'input',placeholder:'Write a comment…',
+                value:commentText,rows:3,onChange:e=>setCommentText(e.target.value),style:{resize:'none',width:'100%'}}),
+              React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:8}},
+                React.createElement('button',{className:'btn btn-primary btn-sm',onClick:postComment},'Post Comment')),
+            ),
+          ),
+          tab==='time'&&React.createElement(React.Fragment,null,
+            React.createElement('div',{className:'flex ai-center jc-between mb12'},
+              React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'var(--text1)'}},`${totalLogged}h total logged`),
+              React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>setShowTimeLog(!showTimeLog)},
+                showTimeLog?'Cancel':'+ Log Time'),
+            ),
+            showTimeLog&&React.createElement('div',{className:'card mb12',style:{padding:14}},
+              React.createElement('div',{className:'flex gap8 mb8'},
+                React.createElement('div',{style:{flex:1}},
+                  React.createElement('label',{style:{fontSize:11,color:'var(--text3)',display:'block',marginBottom:4}},'Hours'),
+                  React.createElement('input',{className:'input',type:'number',min:.25,step:.25,placeholder:'e.g. 2',
+                    value:timeH,onChange:e=>setTimeH(e.target.value)})),
+                React.createElement('div',{style:{flex:1}},
+                  React.createElement('label',{style:{fontSize:11,color:'var(--text3)',display:'block',marginBottom:4}},'Date'),
+                  React.createElement('input',{className:'input',type:'date',value:timeDate,onChange:e=>setTimeDate(e.target.value)})),
+              ),
+              React.createElement('textarea',{className:'input',placeholder:'Note (optional)…',rows:2,
+                value:timeNote,onChange:e=>setTimeNote(e.target.value),style:{resize:'none',marginBottom:8}}),
+              React.createElement('button',{className:'btn btn-primary btn-sm',onClick:handleLogTime},'Save'),
+            ),
+            timelog.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12}},'No time logged yet.'),
+            timelog.map(e=>React.createElement('div',{key:e.id,className:'timelog-row'},
+              React.createElement(Avatar,{user:{id:e.author,name:e.authorName||e.author},size:20}),
+              React.createElement('span',{style:{fontWeight:700,color:'var(--accent2)'}},`${e.hours}h`),
+              React.createElement('span',{className:'muted'},e.note||'—'),
+              React.createElement('span',{className:'muted2',style:{marginLeft:'auto'}},fmt(e.date)),
+            )),
+          ),
+          tab==='attachments'&&React.createElement(React.Fragment,null,
+            React.createElement('div',{className:'mb12'},
+              React.createElement('input',{type:'file',ref:fileRef,style:{display:'none'},
+                onChange:async(e)=>{const f=e.target.files?.[0];if(f)await onAttach(f);e.target.value='';}}),
+              React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>fileRef.current?.click()},
+                '📎 Attach File'),
+              !token&&React.createElement('span',{style:{fontSize:11,color:'var(--text3)',marginLeft:10}},'Drive not connected'),
+            ),
+            attachments.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12}},'No files attached yet.'),
+            attachments.map(a=>React.createElement('div',{key:a.id,className:'attach-row'},
+              React.createElement('div',{className:'attach-icon'},'📄'),
+              React.createElement('div',{style:{flex:1,minWidth:0}},
+                React.createElement('a',{href:a.url,target:'_blank',rel:'noopener',
+                  style:{color:'var(--accent2)',fontSize:12,textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},a.name),
+                React.createElement('div',{style:{fontSize:10,color:'var(--text3)'}},fmtDt(a.uploaded),' · ',a.uploadedBy),
+              ),
+            )),
+          ),
+        ),
+        // Side panel
+        React.createElement('div',{className:'task-side'},
+          React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Status'),
+            React.createElement('select',{className:'side-select',value:task.status,
+              onChange:e=>onUpdate(task.id,{status:e.target.value})},
+              STATUSES.map(s=>React.createElement('option',{key:s},s))
+            ),
+          ),
+          React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Priority'),
+            React.createElement('select',{className:'side-select',value:task.priority||'',
+              onChange:e=>onUpdate(task.id,{priority:e.target.value||null})},
+              React.createElement('option',{value:''},'No priority'),
+              PRIORITIES.map(p=>React.createElement('option',{key:p},p))
+            ),
+          ),
+          React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Assignee'),
+            React.createElement('select',{className:'side-select',value:task.assigneeId||'',
+              onChange:e=>onUpdate(task.id,{assigneeId:e.target.value||null})},
+              React.createElement('option',{value:''},'Unassigned'),
+              users.map(u=>React.createElement('option',{key:u.id,value:u.id},`${u.name} (${u.id})`))
+            ),
+          ),
+          React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Due Date'),
+            React.createElement('input',{className:'side-select',type:'date',value:task.dueDate||'',
+              onChange:e=>onUpdate(task.id,{dueDate:e.target.value||null})}),
+          ),
+          React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Estimated Hours'),
+            React.createElement('input',{className:'side-select',type:'number',min:0,step:.5,
+              placeholder:'e.g. 4',value:task.estHours||'',
+              onChange:e=>onUpdate(task.id,{estHours:+e.target.value||null})}),
+          ),
+          task.estHours&&React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Progress'),
+            React.createElement('div',{style:{height:6,background:'var(--border)',borderRadius:4,overflow:'hidden',marginBottom:4}},
+              React.createElement('div',{style:{height:'100%',width:`${Math.min(100,Math.round((totalLogged/task.estHours)*100))}%`,background:'var(--accent)',borderRadius:4}})),
+            React.createElement('div',{style:{fontSize:10,color:'var(--text2)'}},
+              `${totalLogged}h / ${task.estHours}h estimated`),
+          ),
+          React.createElement('div',{className:'divider'}),
+          React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Created'),
+            React.createElement('div',{className:'muted2',style:{fontSize:11}},fmtDt(task.created)),
+          ),
+          task.updated&&React.createElement('div',{className:'side-field'},
+            React.createElement('label',null,'Updated'),
+            React.createElement('div',{className:'muted2',style:{fontSize:11}},fmtDt(task.updated)),
+          ),
+        ),
+      ),
+    )
+  );
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+function NewFolderModal({onClose,onCreate}){
+  const [name,setName]=useState('');
+  const [color,setColor]=useState(FOLDER_COLORS[0]);
+  return React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target.className==='modal-overlay')onClose();}},
+    React.createElement('div',{className:'modal modal-sm'},
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('h3',null,'New Folder'),
+        React.createElement('button',{className:'btn btn-ghost btn-icon',onClick:onClose},'✕'),
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Folder Name'),
+          React.createElement('input',{className:'input',placeholder:'e.g. Q3 Projects',autoFocus:true,
+            value:name,onChange:e=>setName(e.target.value),
+            onKeyDown:e=>e.key==='Enter'&&name&&onCreate(name,color)}),
+        ),
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Colour'),
+          React.createElement('div',{className:'flex gap8',style:{flexWrap:'wrap'}},
+            FOLDER_COLORS.map(c=>React.createElement('div',{key:c,
+              onClick:()=>setColor(c),
+              style:{width:24,height:24,borderRadius:6,background:c,cursor:'pointer',
+                border:`2px solid ${color===c?'#fff':'transparent'}`,transition:'.15s'}}))
+          ),
+        ),
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Cancel'),
+        React.createElement('button',{className:'btn btn-primary',onClick:()=>name&&onCreate(name,color),disabled:!name},'Create Folder'),
+      ),
+    )
+  );
+}
+
+function NewProjectModal({folderId,onClose,onCreate}){
+  const [name,setName]=useState('');
+  const [desc,setDesc]=useState('');
+  const [color,setColor]=useState(COL_COLORS[0]);
+  return React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target.className==='modal-overlay')onClose();}},
+    React.createElement('div',{className:'modal modal-md'},
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('h3',null,'New Project'),
+        React.createElement('button',{className:'btn btn-ghost btn-icon',onClick:onClose},'✕'),
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Project Name'),
+          React.createElement('input',{className:'input',placeholder:'e.g. Platform Migration',autoFocus:true,
+            value:name,onChange:e=>setName(e.target.value)}),
+        ),
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Description (optional)'),
+          React.createElement('textarea',{className:'textarea',placeholder:'What is this project about?',
+            value:desc,onChange:e=>setDesc(e.target.value),rows:3}),
+        ),
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Colour'),
+          React.createElement('div',{className:'flex gap8',style:{flexWrap:'wrap'}},
+            [...COL_COLORS,...FOLDER_COLORS].filter((c,i,a)=>a.indexOf(c)===i).map(c=>React.createElement('div',{key:c,
+              onClick:()=>setColor(c),
+              style:{width:24,height:24,borderRadius:6,background:c,cursor:'pointer',
+                border:`2px solid ${color===c?'#fff':'transparent'}`,transition:'.15s'}}))
+          ),
+        ),
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Cancel'),
+        React.createElement('button',{className:'btn btn-primary',onClick:()=>name&&onCreate(name,folderId,color,desc),disabled:!name},'Create Project'),
+      ),
+    )
+  );
+}
+
+function NewTaskModal({project,users,currentUser,defaultStatus,onClose,onCreate}){
+  const [title,setTitle]=useState('');
+  const [desc,setDesc]=useState('');
+  const [priority,setPriority]=useState('Medium');
+  const [assigneeId,setAssigneeId]=useState(currentUser?.id||'');
+  const [dueDate,setDueDate]=useState('');
+  const [estHours,setEstHours]=useState('');
+
+  const submit=()=>{
+    if(!title.trim()) return;
+    onCreate({
+      title:title.trim(),desc,priority,assigneeId:assigneeId||null,
+      dueDate:dueDate||null,estHours:estHours?+estHours:null,
+      status:defaultStatus,projectId:project?.id,
+      taskId:taskId(project),totalHours:0,
+    });
+  };
+
+  return React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target.className==='modal-overlay')onClose();}},
+    React.createElement('div',{className:'modal modal-md'},
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('h3',null,'New Task'),
+        React.createElement('button',{className:'btn btn-ghost btn-icon',onClick:onClose},'✕'),
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Title'),
+          React.createElement('input',{className:'input',placeholder:'What needs to be done?',autoFocus:true,
+            value:title,onChange:e=>setTitle(e.target.value),
+            onKeyDown:e=>e.key==='Enter'&&submit()}),
+        ),
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Description (optional)'),
+          React.createElement('textarea',{className:'textarea',placeholder:'More details…',rows:3,
+            value:desc,onChange:e=>setDesc(e.target.value)}),
+        ),
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+          React.createElement('div',{className:'fg'},
+            React.createElement('label',null,'Priority'),
+            React.createElement('select',{className:'select',value:priority,onChange:e=>setPriority(e.target.value)},
+              PRIORITIES.map(p=>React.createElement('option',{key:p},p))),
+          ),
+          React.createElement('div',{className:'fg'},
+            React.createElement('label',null,'Assignee'),
+            React.createElement('select',{className:'select',value:assigneeId,onChange:e=>setAssigneeId(e.target.value)},
+              React.createElement('option',{value:''},'Unassigned'),
+              users.map(u=>React.createElement('option',{key:u.id,value:u.id},`${u.name} (${u.id})`)),
+            ),
+          ),
+          React.createElement('div',{className:'fg'},
+            React.createElement('label',null,'Due Date'),
+            React.createElement('input',{className:'input',type:'date',value:dueDate,onChange:e=>setDueDate(e.target.value)}),
+          ),
+          React.createElement('div',{className:'fg'},
+            React.createElement('label',null,'Estimated Hours'),
+            React.createElement('input',{className:'input',type:'number',min:0,step:.5,placeholder:'e.g. 4',
+              value:estHours,onChange:e=>setEstHours(e.target.value)}),
+          ),
+        ),
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Cancel'),
+        React.createElement('button',{className:'btn btn-primary',onClick:submit,disabled:!title.trim()},'Create Task'),
+      ),
+    )
+  );
+}
+
+function NewColumnModal({onClose,onCreate}){
+  const [name,setName]=useState('');
+  return React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target.className==='modal-overlay')onClose();}},
+    React.createElement('div',{className:'modal modal-sm'},
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('h3',null,'New Column'),
+        React.createElement('button',{className:'btn btn-ghost btn-icon',onClick:onClose},'✕'),
+      ),
+      React.createElement('div',{className:'modal-body'},
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Column Name'),
+          React.createElement('input',{className:'input',placeholder:'e.g. Staging',autoFocus:true,
+            value:name,onChange:e=>setName(e.target.value),
+            onKeyDown:e=>e.key==='Enter'&&name&&onCreate(name)}),
+        ),
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Cancel'),
+        React.createElement('button',{className:'btn btn-primary',onClick:()=>name&&onCreate(name),disabled:!name},'Add Column'),
+      ),
+    )
+  );
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+const root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
