@@ -230,7 +230,7 @@ const {useState,useEffect,useRef,useCallback,useMemo}=React;
 // ── Constants ────────────────────────────────────────────────────────────────
 const ROTA_FOLDER='CloudOps-Rota';
 const PROJ_FOLDER='CloudOps-Projects';
-const CLIENT_ID='771489989549-di3h0cglt71ed7hmgtknksm3ks0afdtj.apps.googleusercontent.com'; // replace with actual client ID
+const CLIENT_ID='YOUR_GOOGLE_CLIENT_ID'; // replace with actual client ID
 const SCOPES='https://www.googleapis.com/auth/drive.file';
 
 const PRIORITIES=['Critical','High','Medium','Low'];
@@ -396,6 +396,7 @@ function App(){
   const [selTask,setSelTask]=useState(null);
   const [openFolders,setOpenFolders]=useState({});
   const [modal,setModal]=useState(null); // null|'newFolder'|'newProject'|'newTask'|'editTask'|'editProject'|'logTime'|'newCol'
+  const [dashProject,setDashProject]=useState(null); // for dashboard drill-down
   const [searchQ,setSearchQ]=useState('');
   const driveLoaded=useRef(false);
 
@@ -549,8 +550,9 @@ function App(){
 
   // breadcrumb
   const bc=[];
-  if(selectedFolder) bc.push(selectedFolder.name);
-  if(selProject) bc.push(selProject.name);
+  if(selectedFolder) bc.push({label:selectedFolder.name,onClick:()=>{setSelTask(null);setSelProject(null);}});
+  if(selProject) bc.push({label:selProject.name,onClick:()=>setSelTask(null)});
+  if(selTask) bc.push({label:selTask.title,onClick:null});
 
   return React.createElement('div',{id:'app'},
     // ── Topbar ──────────────────────────────────────────────────────────────
@@ -559,14 +561,16 @@ function App(){
       React.createElement('div',{className:'tb-breadcrumb'},
         bc.map((b,i)=>React.createElement(React.Fragment,{key:i},
           i>0&&React.createElement('span',{className:'tb-sep'},'/'),
-          React.createElement('b',null,b)
+          b.onClick
+            ? React.createElement('span',{style:{cursor:'pointer',color:'var(--text2)'},onClick:b.onClick},b.label)
+            : React.createElement('b',null,b.label)
         ))
       ),
-      selProject&&React.createElement(React.Fragment,null,
+      !selTask&&selProject&&React.createElement(React.Fragment,null,
         React.createElement('button',{className:`tb-view-btn${view==='board'?' active':''}`,onClick:()=>setView('board')},'⊞ Board'),
         React.createElement('button',{className:`tb-view-btn${view==='list'?' active':''}`,onClick:()=>setView('list')},'☰ List'),
       ),
-      React.createElement('button',{className:`tb-view-btn${view==='dashboard'?' active':''}`,onClick:()=>{setSelProject(null);setView('dashboard')}},'📊 Dashboard'),
+      React.createElement('button',{className:`tb-view-btn${view==='dashboard'&&!selTask?' active':''}`,onClick:()=>{setSelProject(null);setSelTask(null);setView('dashboard');setDashProject(null);}},'📊 Dashboard'),
       React.createElement('input',{className:'tb-search',placeholder:'Search tasks…',value:searchQ,onChange:e=>setSearchQ(e.target.value)}),
       React.createElement('div',{className:'tb-avatar',style:{background:avatarColor(currentUser.id)},title:currentUser.name},initials(currentUser.name)),
     ),
@@ -626,15 +630,48 @@ function App(){
       ),
       // Main
       React.createElement('div',{id:'main'},
-        view==='dashboard'
-          ? React.createElement(Dashboard,{projects,tasks,timelog,users,setSelProject,setView})
-          : !selProject
+        // ── Task detail — inline, full main area ─────────────────────────────
+        selTask
+        ? React.createElement(TaskDetail,{
+            task:selTask,
+            tasks,
+            users,
+            currentUser,
+            project:selProject,
+            comments:getComments(selTask.id),
+            timelog:getTimelog(selTask.id),
+            attachments:getAttachments(selTask.id),
+            subtasks:getTasks(selTask.projectId,selTask.id),
+            onClose:()=>setSelTask(null),
+            onUpdate:updateTask,
+            onDelete:deleteTask,
+            onComment:addComment,
+            onLogTime:(h,n,d)=>logTime(selTask.id,h,n,d),
+            onAddSubtask:(data)=>createTask({...data,projectId:selTask.projectId,parentId:selTask.id}),
+            onAttach:(f)=>addAttachment(selTask.id,f),
+            token,
+          })
+        // ── Dashboard ──────────────────────────────────────────────────────────
+        : view==='dashboard'
+          ? React.createElement(Dashboard,{
+              projects,tasks,timelog,users,
+              dashProject,setDashProject,
+              onSelectProject:(p)=>{setSelProject(p);setView('board');setSearchQ('');},
+              onTaskClick:(t)=>{
+                const p=projects.find(x=>x.id===t.projectId);
+                if(p) setSelProject(p);
+                setSelTask(t);
+              },
+            })
+        // ── No project selected ────────────────────────────────────────────────
+        : !selProject
           ? React.createElement('div',{className:'empty',style:{paddingTop:80}},
               React.createElement('div',{className:'icon'},'📁'),
               React.createElement('h3',null,'Select a project'),
               React.createElement('p',null,'Choose a project from the sidebar or create a new one.')
             )
-          : view==='board'
+        // ── Board / List ───────────────────────────────────────────────────────
+        : view==='board'
           ? React.createElement(BoardView,{
               project:selProject,columns,tasks:filteredTasks,users,currentUser,
               onTaskClick:(t)=>setSelTask(t),
@@ -651,26 +688,6 @@ function App(){
             })
       )
     ),
-    // ── Task detail panel (as overlay) ───────────────────────────────────────
-    selTask&&React.createElement(TaskDetail,{
-      task:selTask,
-      tasks,
-      users,
-      currentUser,
-      project:selProject,
-      comments:getComments(selTask.id),
-      timelog:getTimelog(selTask.id),
-      attachments:getAttachments(selTask.id),
-      subtasks:getTasks(selTask.projectId,selTask.id),
-      onClose:()=>setSelTask(null),
-      onUpdate:updateTask,
-      onDelete:deleteTask,
-      onComment:addComment,
-      onLogTime:(h,n,d)=>logTime(selTask.id,h,n,d),
-      onAddSubtask:(data)=>createTask({...data,projectId:selTask.projectId,parentId:selTask.id}),
-      onAttach:(f)=>addAttachment(selTask.id,f),
-      token,
-    }),
     // ── Modals ───────────────────────────────────────────────────────────────
     modal==='newFolder'&&React.createElement(NewFolderModal,{onClose:()=>setModal(null),onCreate:createFolder}),
     modal==='newProject'&&React.createElement(NewProjectModal,{folderId:selFolder,onClose:()=>setModal(null),onCreate:createProject}),
@@ -761,13 +778,13 @@ function BoardView({project,columns,tasks,users,currentUser,onTaskClick,onMoveTa
   );
 }
 
-function KanbanCard({task,users,getTasks,onClick,onMove,columns}){
-  const assignee=users.find(u=>u.id===task.assigneeId);
+function KanbanCard({task,users,getTasks,onClick}){
+  const assigneeIds=task.assigneeIds||(task.assigneeId?[task.assigneeId]:[]);
+  const assignees=assigneeIds.map(id=>users.find(u=>u.id===id)).filter(Boolean);
   const subtasks=getTasks(task.projectId,task.id);
   const doneSubs=subtasks.filter(s=>s.status==='Done').length;
   const pct=subtasks.length?Math.round(doneSubs/subtasks.length*100):0;
   const over=isOverdue(task.dueDate)&&task.status!=='Done';
-
   return React.createElement('div',{className:'k-card',onClick,
     style:{borderLeft:`3px solid ${PRI_COLORS[task.priority]||'var(--border2)'}`}},
     React.createElement('div',{className:'k-card-title'},task.title),
@@ -780,8 +797,10 @@ function KanbanCard({task,users,getTasks,onClick,onMove,columns}){
       task.priority&&React.createElement('span',{className:`pri ${PRI_CSS[task.priority]}`},task.priority),
       task.dueDate&&React.createElement('span',{className:`k-card-due${over?' overdue':''}`},fmt(task.dueDate)),
       React.createElement('span',{className:'k-card-id mono'},task.taskId),
-      assignee&&React.createElement('div',{style:{marginLeft:'auto'}},
-        React.createElement(Avatar,{user:assignee,size:20,style:{marginLeft:0}})),
+      assignees.length>0&&React.createElement('div',{style:{marginLeft:'auto',display:'flex'}},
+        assignees.slice(0,3).map((u,i)=>React.createElement(Avatar,{key:u.id,user:u,size:20,style:{marginLeft:i>0?-6:0,zIndex:3-i}})),
+        assignees.length>3&&React.createElement('div',{style:{width:20,height:20,borderRadius:'50%',background:'var(--bg3)',border:'2px solid var(--bg3)',fontSize:8,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text2)',marginLeft:-6}},`+${assignees.length-3}`),
+      ),
     ),
   );
 }
@@ -817,7 +836,6 @@ function ListView({project,tasks,users,onTaskClick,onAddTask,getTasks}){
         React.createElement('span',{className:'g-count'},grpTasks.length,' tasks'),
       ),
       grpTasks.map(t=>{
-        const assignee=users.find(u=>u.id===t.assigneeId);
         const subs=getTasks(t.projectId,t.id);
         return React.createElement('div',{key:t.id,className:'lv-row',onClick:()=>onTaskClick(t)},
           React.createElement('div',{className:`cb${t.status==='Done'?' done':''}`}),
@@ -825,11 +843,18 @@ function ListView({project,tasks,users,onTaskClick,onAddTask,getTasks}){
             React.createElement('span',null,t.title),
             subs.length>0&&React.createElement('span',{className:'sub-count'},`${subs.filter(s=>s.status==='Done').length}/${subs.length}`),
           ),
-          React.createElement('div',null,assignee
-            ?React.createElement('div',{className:'flex ai-center gap4'},
-                React.createElement(Avatar,{user:assignee,size:18}),
-                React.createElement('span',{style:{fontSize:11,color:'var(--text2)'}},assignee.name.split(' ')[0]))
-            :React.createElement('span',{style:{color:'var(--text3)',fontSize:11}},'Unassigned')),
+          React.createElement('div',null,
+            (()=>{
+              const ids=t.assigneeIds||(t.assigneeId?[t.assigneeId]:[]);
+              const asgns=ids.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+              if(!asgns.length) return React.createElement('span',{style:{color:'var(--text3)',fontSize:11}},'Unassigned');
+              return React.createElement('div',{className:'flex ai-center gap4'},
+                asgns.slice(0,2).map((u,i)=>React.createElement(Avatar,{key:u.id,user:u,size:18,style:{marginLeft:i>0?-4:0}})),
+                asgns.length>2&&React.createElement('span',{style:{fontSize:10,color:'var(--text3)'}},'+'+(asgns.length-2)),
+                React.createElement('span',{style:{fontSize:11,color:'var(--text2)',marginLeft:4}},asgns[0].name.split(' ')[0]+(asgns.length>1?` +${asgns.length-1}`:'')),
+              );
+            })()
+          ),
           React.createElement('div',null,t.priority?React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority):React.createElement('span',{style:{color:'var(--text3)',fontSize:11}},'—')),
           React.createElement('div',{style:{fontSize:11,color:isOverdue(t.dueDate)&&t.status!=='Done'?'var(--crit)':'var(--text2)'}},fmt(t.dueDate)),
           React.createElement('div',null,React.createElement('span',{className:`status ${STATUS_CSS[t.status]||'status-todo'}`},t.status)),
@@ -847,109 +872,211 @@ function ListView({project,tasks,users,onTaskClick,onAddTask,getTasks}){
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({projects,tasks,timelog,users,setSelProject,setView}){
+function Dashboard({projects,tasks,timelog,users,dashProject,setDashProject,onSelectProject,onTaskClick}){
   const allProjects=projects.filter(p=>p.type==='project');
+  const folders=projects.filter(p=>p.type==='folder');
   const allTasks=tasks.filter(t=>!t.parentId);
   const today=new Date();today.setHours(0,0,0,0);
   const weekEnd=new Date(today);weekEnd.setDate(weekEnd.getDate()+7);
-
   const overdue=allTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<today&&t.status!=='Done');
   const dueThisWeek=allTasks.filter(t=>t.dueDate&&new Date(t.dueDate)>=today&&new Date(t.dueDate)<=weekEnd&&t.status!=='Done');
-  const done=allTasks.filter(t=>t.status==='Done');
   const totalHours=timelog.reduce((s,e)=>s+(+e.hours||0),0);
-
-  // Per-user time
   const userHours={};
   timelog.forEach(e=>{userHours[e.author]=(userHours[e.author]||0)+(+e.hours||0);});
 
-  // Project progress
-  const projProgress=allProjects.map(p=>{
-    const pts=tasks.filter(t=>t.projectId===p.id&&!t.parentId);
-    const done=pts.filter(t=>t.status==='Done').length;
-    const pct=pts.length?Math.round(done/pts.length*100):0;
-    return{...p,total:pts.length,done,pct};
-  }).sort((a,b)=>b.pct-a.pct);
+  // ── Project detail view ───────────────────────────────────────────────────
+  if(dashProject){
+    const proj=allProjects.find(p=>p.id===dashProject);
+    if(!proj){setDashProject(null);return null;}
+    const projTasks=tasks.filter(t=>t.projectId===proj.id&&!t.parentId);
+    const folder=folders.find(f=>f.id===proj.folderId);
+    const grouped={};
+    ['To Do','In Progress','In Review','Done','Blocked'].forEach(s=>{
+      const g=projTasks.filter(t=>t.status===s);
+      if(g.length) grouped[s]=g;
+    });
+    const done=projTasks.filter(t=>t.status==='Done').length;
+    const pct=projTasks.length?Math.round(done/projTasks.length*100):0;
+    const projHours=timelog.filter(e=>projTasks.find(t=>t.id===e.taskId)).reduce((s,e)=>s+(+e.hours||0),0);
 
-  return React.createElement('div',{id:'dashboard'},
-    // Stats row
-    React.createElement('div',{className:'dash-stat'},
-      React.createElement('div',{className:'num'},allProjects.length),
-      React.createElement('div',{className:'lbl'},'Projects'),
-    ),
-    React.createElement('div',{className:'dash-stat'},
-      React.createElement('div',{className:'num'},allTasks.length),
-      React.createElement('div',{className:'lbl'},'Total Tasks'),
-    ),
-    React.createElement('div',{className:'dash-stat'},
-      React.createElement('div',{className:'num',style:{color:'var(--crit)'}},overdue.length),
-      React.createElement('div',{className:'lbl'},'Overdue'),
-    ),
-    React.createElement('div',{className:'dash-stat'},
-      React.createElement('div',{className:'num',style:{color:'var(--green)'}},done.length),
-      React.createElement('div',{className:'lbl'},'Completed'),
-    ),
-    // Due this week
-    React.createElement('div',{className:'dash-section dash-wide'},
-      React.createElement('h4',null,'Due This Week'),
-      dueThisWeek.length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},
-        '🎉 Nothing due this week.'),
-      dueThisWeek.slice(0,8).map(t=>React.createElement('div',{key:t.id,className:'due-row',
-        style:{cursor:'pointer'},
-        onClick:()=>{const p=allProjects.find(p=>p.id===t.projectId);if(p){setSelProject(p);setView('list');}}},
-        React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority||'—'),
-        React.createElement('span',{className:'task-name'},t.title),
-        React.createElement('span',{style:{fontSize:11,color:'var(--text2)',flexShrink:0}},fmt(t.dueDate)),
-      )),
-    ),
-    // Overdue
-    React.createElement('div',{className:'dash-section dash-wide'},
-      React.createElement('h4',null,'Overdue'),
-      overdue.length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},'✅ Nothing overdue.'),
-      overdue.slice(0,8).map(t=>React.createElement('div',{key:t.id,className:'due-row',
-        style:{cursor:'pointer'},
-        onClick:()=>{const p=allProjects.find(p=>p.id===t.projectId);if(p){setSelProject(p);setView('list');}}},
-        React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority||'—'),
-        React.createElement('span',{className:'task-name'},t.title),
-        React.createElement('span',{style:{fontSize:11,color:'var(--crit)',flexShrink:0}},fmt(t.dueDate)),
-      )),
-    ),
-    // Project progress
-    React.createElement('div',{className:'dash-section dash-wide'},
-      React.createElement('h4',null,'Project Progress'),
-      projProgress.length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},'No projects yet.'),
-      projProgress.map(p=>React.createElement('div',{key:p.id,className:'proj-progress-row',
-        style:{cursor:'pointer'},onClick:()=>{setSelProject(p);setView('board');}},
-        React.createElement('div',{className:'dot-indicator',style:{background:p.color||'var(--accent)'}}),
-        React.createElement('div',{className:'name'},p.name),
-        React.createElement('div',{className:'mini-bar'},
-          React.createElement('div',{className:'mini-bar-fill',style:{width:`${p.pct}%`}})),
-        React.createElement('div',{className:'pct'},`${p.pct}%`),
-        React.createElement('div',{style:{fontSize:10,color:'var(--text3)',width:60,textAlign:'right'}},`${p.done}/${p.total} tasks`),
-      )),
-    ),
-    // Time per person
-    React.createElement('div',{className:'dash-section dash-wide'},
-      React.createElement('h4',null,'Time Logged by Engineer'),
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}},
-        users.filter(u=>userHours[u.id]).map(u=>React.createElement('div',{key:u.id,
-          style:{background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:'var(--radius)',padding:'10px 12px',display:'flex',alignItems:'center',gap:10}},
-          React.createElement(Avatar,{user:u,size:28}),
-          React.createElement('div',null,
-            React.createElement('div',{style:{fontSize:12,fontWeight:600,color:'var(--text1)'}},u.name.split(' ')[0]),
-            React.createElement('div',{style:{fontSize:11,color:'var(--accent2)',fontWeight:700}},`${userHours[u.id]}h logged`),
-          )
-        )),
-        users.filter(u=>!userHours[u.id]).length>0&&
-          React.createElement('div',{style:{fontSize:11,color:'var(--text3)',padding:'10px 0'}},
-            `${users.filter(u=>!userHours[u.id]).length} engineers with no time logged.`),
+    return React.createElement('div',{style:{height:'100%',display:'flex',flexDirection:'column'}},
+      // Header
+      React.createElement('div',{className:'page-hd'},
+        React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>setDashProject(null)},'← All Projects'),
+        React.createElement('div',{style:{width:10,height:10,borderRadius:3,background:proj.color,flexShrink:0}}),
+        React.createElement('h2',null,proj.name),
+        folder&&React.createElement('span',{style:{fontSize:11,color:'var(--text3)',fontWeight:400}},folder.name),
+        React.createElement('button',{className:'btn btn-primary btn-sm',style:{marginLeft:'auto'},
+          onClick:()=>onSelectProject(proj)},'Open Project →'),
       ),
-      totalHours>0&&React.createElement('div',{style:{marginTop:12,fontSize:12,color:'var(--text2)'}},
-        `Total: `,React.createElement('b',{style:{color:'var(--text1)'}},`${totalHours}h`),` logged across all projects.`),
+      React.createElement('div',{style:{overflowY:'auto',flex:1,padding:20}},
+        // Stats row
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}},
+          React.createElement('div',{className:'dash-stat'},
+            React.createElement('div',{className:'num'},projTasks.length),
+            React.createElement('div',{className:'lbl'},'Total Tasks'),
+          ),
+          React.createElement('div',{className:'dash-stat'},
+            React.createElement('div',{className:'num',style:{color:'var(--green)'}},done),
+            React.createElement('div',{className:'lbl'},'Completed'),
+          ),
+          React.createElement('div',{className:'dash-stat'},
+            React.createElement('div',{className:'num',style:{color:'var(--crit)'}},projTasks.filter(t=>t.dueDate&&new Date(t.dueDate)<today&&t.status!=='Done').length),
+            React.createElement('div',{className:'lbl'},'Overdue'),
+          ),
+          React.createElement('div',{className:'dash-stat'},
+            React.createElement('div',{className:'num',style:{color:'var(--accent2)'}},projHours+'h'),
+            React.createElement('div',{className:'lbl'},'Time Logged'),
+          ),
+        ),
+        // Progress bar
+        React.createElement('div',{className:'dash-section',style:{marginBottom:20}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:8}},
+            React.createElement('h4',{style:{margin:0}},'Overall Progress'),
+            React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'var(--text1)',marginLeft:'auto'}},`${pct}%`),
+          ),
+          React.createElement('div',{style:{height:8,background:'var(--border)',borderRadius:4,overflow:'hidden'}},
+            React.createElement('div',{style:{height:'100%',width:`${pct}%`,background:'var(--accent)',borderRadius:4,transition:'.3s'}})),
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginTop:6,fontSize:11,color:'var(--text3)'}},
+            React.createElement('span',null,`${done} of ${projTasks.length} tasks done`),
+          ),
+        ),
+        // Task list grouped by status
+        projTasks.length===0
+          ? React.createElement('div',{className:'empty'},
+              React.createElement('div',{className:'icon'},'📋'),
+              React.createElement('h3',null,'No tasks yet'),
+              React.createElement('p',null,'Open the project to start adding tasks.'),
+            )
+          : Object.entries(grouped).map(([status,grpTasks])=>React.createElement('div',{key:status,style:{marginBottom:16}},
+              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
+                React.createElement('span',{className:`status ${STATUS_CSS[status]||'status-todo'}`},status),
+                React.createElement('span',{style:{fontSize:11,color:'var(--text3)'}},grpTasks.length,' tasks'),
+              ),
+              React.createElement('div',{style:{border:'1px solid var(--border)',borderRadius:'var(--radius)',overflow:'hidden'}},
+                grpTasks.map((t,i)=>{
+                  const ids=t.assigneeIds||(t.assigneeId?[t.assigneeId]:[]);
+                  const asgns=ids.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+                  const over=isOverdue(t.dueDate)&&t.status!=='Done';
+                  return React.createElement('div',{key:t.id,
+                    onClick:()=>onTaskClick(t),
+                    style:{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',
+                      borderBottom:i<grpTasks.length-1?'1px solid var(--border)':'none',
+                      cursor:'pointer',transition:'.1s',background:'var(--bg2)'},
+                    onMouseEnter:e=>e.currentTarget.style.background='var(--bg3)',
+                    onMouseLeave:e=>e.currentTarget.style.background='var(--bg2)',
+                  },
+                    React.createElement('div',{className:`cb${t.status==='Done'?' done':''}`}),
+                    React.createElement('span',{style:{flex:1,fontSize:12,color:'var(--text1)',fontWeight:500}},t.title),
+                    t.priority&&React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority),
+                    t.dueDate&&React.createElement('span',{style:{fontSize:11,color:over?'var(--crit)':'var(--text3)',flexShrink:0}},fmt(t.dueDate)),
+                    React.createElement('div',{style:{display:'flex',marginLeft:4}},
+                      asgns.slice(0,3).map((u,i)=>React.createElement(Avatar,{key:u.id,user:u,size:20,style:{marginLeft:i>0?-6:0}})),
+                    ),
+                  );
+                }),
+              ),
+            )),
+      ),
+    );
+  }
+
+  // ── Project list overview ─────────────────────────────────────────────────
+  return React.createElement('div',{style:{height:'100%',display:'flex',flexDirection:'column'}},
+    React.createElement('div',{className:'page-hd'},
+      React.createElement('h2',null,'Dashboard'),
+      React.createElement('span',{style:{fontSize:12,color:'var(--text3)',fontWeight:400}},`${allProjects.length} projects · ${allTasks.length} tasks`),
+    ),
+    React.createElement('div',{style:{overflowY:'auto',flex:1,padding:20}},
+      // Summary stats
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}},
+        React.createElement('div',{className:'dash-stat'},
+          React.createElement('div',{className:'num'},allProjects.length),
+          React.createElement('div',{className:'lbl'},'Projects'),
+        ),
+        React.createElement('div',{className:'dash-stat'},
+          React.createElement('div',{className:'num'},allTasks.length),
+          React.createElement('div',{className:'lbl'},'Total Tasks'),
+        ),
+        React.createElement('div',{className:'dash-stat'},
+          React.createElement('div',{className:'num',style:{color:'var(--crit)'}},overdue.length),
+          React.createElement('div',{className:'lbl'},'Overdue'),
+        ),
+        React.createElement('div',{className:'dash-stat'},
+          React.createElement('div',{className:'num',style:{color:'var(--accent2)'}},totalHours+'h'),
+          React.createElement('div',{className:'lbl'},'Hours Logged'),
+        ),
+      ),
+      // Projects grid — click to drill in
+      React.createElement('h4',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',marginBottom:12}},'All Projects'),
+      allProjects.length===0
+        ? React.createElement('div',{className:'empty'},
+            React.createElement('div',{className:'icon'},'📁'),
+            React.createElement('h3',null,'No projects yet'),
+            React.createElement('p',null,'Create a folder in the sidebar, then add a project.'),
+          )
+        : React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:12,marginBottom:24}},
+            allProjects.map(p=>{
+              const pts=tasks.filter(t=>t.projectId===p.id&&!t.parentId);
+              const done=pts.filter(t=>t.status==='Done').length;
+              const pct=pts.length?Math.round(done/pts.length*100):0;
+              const ov=pts.filter(t=>t.dueDate&&new Date(t.dueDate)<today&&t.status!=='Done').length;
+              const folder=folders.find(f=>f.id===p.folderId);
+              const ph=timelog.filter(e=>pts.find(t=>t.id===e.taskId)).reduce((s,e)=>s+(+e.hours||0),0);
+              return React.createElement('div',{key:p.id,
+                onClick:()=>setDashProject(p.id),
+                style:{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:'var(--radius2)',
+                  padding:'16px',cursor:'pointer',transition:'.15s',borderTop:`3px solid ${p.color||'var(--accent)'}`},
+                onMouseEnter:e=>e.currentTarget.style.background='var(--bg3)',
+                onMouseLeave:e=>e.currentTarget.style.background='var(--bg2)',
+              },
+                React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:8,marginBottom:10}},
+                  React.createElement('div',{style:{flex:1}},
+                    React.createElement('div',{style:{fontSize:14,fontWeight:700,color:'var(--text1)',marginBottom:2}},p.name),
+                    folder&&React.createElement('div',{style:{fontSize:10,color:'var(--text3)'}},folder.name),
+                  ),
+                  React.createElement('span',{style:{fontSize:11,color:'var(--accent2)',fontWeight:700}},`${pct}%`),
+                ),
+                // Progress bar
+                React.createElement('div',{style:{height:4,background:'var(--border)',borderRadius:2,overflow:'hidden',marginBottom:10}},
+                  React.createElement('div',{style:{height:'100%',width:`${pct}%`,background:p.color||'var(--accent)',borderRadius:2}})),
+                // Stats row
+                React.createElement('div',{style:{display:'flex',gap:12,fontSize:11,color:'var(--text3)'}},
+                  React.createElement('span',null,`${done}/${pts.length} tasks`),
+                  ov>0&&React.createElement('span',{style:{color:'var(--crit)'}},`${ov} overdue`),
+                  ph>0&&React.createElement('span',{style:{color:'var(--text2)'}},`${ph}h logged`),
+                ),
+              );
+            }),
+          ),
+      // Due this week + per-user time side by side
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+        React.createElement('div',{className:'dash-section'},
+          React.createElement('h4',null,'Due This Week'),
+          dueThisWeek.length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},'🎉 Nothing due this week.'),
+          dueThisWeek.slice(0,6).map(t=>React.createElement('div',{key:t.id,className:'due-row',
+            style:{cursor:'pointer'},onClick:()=>onTaskClick(t)},
+            React.createElement('span',{className:`pri ${PRI_CSS[t.priority]}`},t.priority||'—'),
+            React.createElement('span',{className:'task-name'},t.title),
+            React.createElement('span',{style:{fontSize:11,color:'var(--text2)',flexShrink:0}},fmt(t.dueDate)),
+          )),
+        ),
+        React.createElement('div',{className:'dash-section'},
+          React.createElement('h4',null,'Time by Engineer'),
+          users.filter(u=>userHours[u.id]).length===0&&React.createElement('div',{style:{color:'var(--text3)',fontSize:12}},'No time logged yet.'),
+          users.filter(u=>userHours[u.id]).map(u=>React.createElement('div',{key:u.id,
+            style:{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid var(--border)'}},
+            React.createElement(Avatar,{user:u,size:22}),
+            React.createElement('span',{style:{flex:1,fontSize:12,color:'var(--text1)'}},u.name.split(' ')[0]),
+            React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--accent2)'}},`${userHours[u.id]}h`),
+          )),
+        ),
+      ),
     ),
   );
 }
 
-// ── Task Detail ───────────────────────────────────────────────────────────────
+// ── Task Detail — inline full-page ───────────────────────────────────────────
 function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attachments,subtasks,onClose,onUpdate,onDelete,onComment,onLogTime,onAddSubtask,onAttach,token}){
   const [commentText,setCommentText]=useState('');
   const [newSub,setNewSub]=useState('');
@@ -957,13 +1084,20 @@ function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attac
   const [timeH,setTimeH]=useState('');
   const [timeNote,setTimeNote]=useState('');
   const [timeDate,setTimeDate]=useState(new Date().toISOString().slice(0,10));
-  const [tab,setTab]=useState('details'); // details|comments|time|attachments
+  const [tab,setTab]=useState('details');
   const fileRef=useRef(null);
   const totalLogged=timelog.reduce((s,e)=>s+(+e.hours||0),0);
 
+  // Multi-assignee: support legacy assigneeId
+  const assigneeIds=task.assigneeIds||(task.assigneeId?[task.assigneeId]:[]);
+  const toggleAssignee=(id)=>{
+    const next=assigneeIds.includes(id)?assigneeIds.filter(x=>x!==id):[...assigneeIds,id];
+    onUpdate(task.id,{assigneeIds:next,assigneeId:next[0]||null});
+  };
+
   const addSub=()=>{
     if(!newSub.trim()) return;
-    onAddSubtask({title:newSub.trim(),taskId:'sub_'+uid(),projectId:task.projectId,parentId:task.id,status:'To Do'});
+    onAddSubtask({title:newSub.trim(),projectId:task.projectId,parentId:task.id,status:'To Do'});
     setNewSub('');
   };
 
@@ -976,194 +1110,189 @@ function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attac
   const handleLogTime=()=>{
     if(!timeH||+timeH<=0) return;
     onLogTime(timeH,timeNote,timeDate);
-    // update totalHours on task
-    const newTotal=(+task.totalHours||0)+(+timeH);
-    onUpdate(task.id,{totalHours:newTotal});
+    onUpdate(task.id,{totalHours:(+task.totalHours||0)+(+timeH)});
     setTimeH('');setTimeNote('');setShowTimeLog(false);
   };
 
   const TABS=[['details','Details'],['comments',`Comments (${comments.length})`],['time',`Time (${totalLogged}h)`],['attachments',`Files (${attachments.length})`]];
 
   const TBtn=(id,label)=>React.createElement('button',{
-    key:id,
-    onClick:()=>setTab(id),
-    style:{padding:'6px 12px',border:'none',background:'transparent',color:tab===id?'var(--accent2)':'var(--text2)',
-      fontWeight:tab===id?700:400,fontSize:12,cursor:'pointer',borderBottom:`2px solid ${tab===id?'var(--accent)':'transparent'}`,transition:'.15s'}
+    key:id,onClick:()=>setTab(id),
+    style:{padding:'6px 14px',border:'none',background:'transparent',
+      color:tab===id?'var(--accent2)':'var(--text2)',
+      fontWeight:tab===id?700:400,fontSize:12,cursor:'pointer',
+      borderBottom:`2px solid ${tab===id?'var(--accent)':'transparent'}`,transition:'.15s'}
   },label);
 
-  return React.createElement('div',{className:'modal-overlay',onClick:(e)=>{if(e.target.className==='modal-overlay')onClose();}},
-    React.createElement('div',{className:'modal modal-lg',style:{maxWidth:920,height:'85vh'}},
-      // Header
-      React.createElement('div',{className:'modal-hd'},
-        React.createElement('span',{className:'mono muted2',style:{fontSize:10}},task.taskId),
-        React.createElement('h3',{style:{flex:1}},task.title),
-        React.createElement('button',{className:'btn btn-danger btn-xs',onClick:()=>{if(window.confirm('Delete this task?')){onDelete(task.id);onClose();}}},
-          '🗑 Delete'),
-        React.createElement('button',{className:'btn btn-ghost btn-icon',onClick:onClose},'✕'),
+  return React.createElement('div',{style:{display:'flex',flexDirection:'column',height:'100%',background:'var(--bg)'}},
+    // ── Header bar ────────────────────────────────────────────────────────────
+    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,padding:'10px 20px',borderBottom:'1px solid var(--border)',background:'var(--bg2)',flexShrink:0}},
+      React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:onClose},'← Back'),
+      React.createElement('span',{className:'mono muted2',style:{fontSize:10}},task.taskId),
+      React.createElement('span',{style:{flex:1,fontSize:13,fontWeight:600,color:'var(--text1)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},task.title),
+      React.createElement('button',{className:'btn btn-danger btn-sm',onClick:()=>{if(window.confirm('Delete this task?')){onDelete(task.id);onClose();}}},'🗑 Delete'),
+    ),
+    // ── Tabs ─────────────────────────────────────────────────────────────────
+    React.createElement('div',{style:{display:'flex',borderBottom:'1px solid var(--border)',padding:'0 20px',background:'var(--bg2)',flexShrink:0}},
+      TABS.map(([id,label])=>TBtn(id,label))
+    ),
+    // ── Two-column body ───────────────────────────────────────────────────────
+    React.createElement('div',{style:{display:'flex',flex:1,overflow:'hidden'}},
+      // Main content
+      React.createElement('div',{className:'task-main',style:{flex:1,padding:24,overflowY:'auto'}},
+        tab==='details'&&React.createElement(React.Fragment,null,
+          React.createElement('input',{className:'task-title-input',value:task.title,
+            onChange:e=>onUpdate(task.id,{title:e.target.value}),placeholder:'Task title'}),
+          React.createElement('div',{className:'mb16'},
+            React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:6}},'Description'),
+            React.createElement('textarea',{className:'task-desc',value:task.desc||'',rows:5,
+              onChange:e=>onUpdate(task.id,{desc:e.target.value}),placeholder:'Add a description…'}),
+          ),
+          React.createElement('div',{className:'mb16'},
+            React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:8}},
+              `Subtasks (${subtasks.filter(s=>s.status==='Done').length}/${subtasks.length})`),
+            subtasks.length>0&&React.createElement('div',{style:{border:'1px solid var(--border)',borderRadius:'var(--radius)',marginBottom:8,overflow:'hidden'}},
+              subtasks.map(s=>React.createElement('div',{key:s.id,className:'subtask-row',style:{padding:'7px 10px'}},
+                React.createElement('div',{className:`cb${s.status==='Done'?' done':''}`,
+                  onClick:()=>onUpdate(s.id,{status:s.status==='Done'?'To Do':'Done'})}),
+                React.createElement('span',{className:`subtask-title${s.status==='Done'?' done':''}`},s.title),
+                React.createElement('button',{className:'btn btn-ghost btn-xs',style:{marginLeft:'auto',color:'var(--crit)'},
+                  onClick:()=>onDelete(s.id)},'✕'),
+              ))
+            ),
+            React.createElement('div',{className:'flex gap8'},
+              React.createElement('input',{className:'input',placeholder:'New subtask…',
+                value:newSub,onChange:e=>setNewSub(e.target.value),
+                onKeyDown:e=>e.key==='Enter'&&addSub(),style:{flex:1}}),
+              React.createElement('button',{className:'btn btn-secondary',onClick:addSub},'Add'),
+            ),
+          ),
+        ),
+        tab==='comments'&&React.createElement(React.Fragment,null,
+          comments.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12,padding:'16px 0'}},'No comments yet.'),
+          comments.map(c=>React.createElement('div',{key:c.id,className:'comment'},
+            React.createElement('div',{className:'comment-hd'},
+              React.createElement(Avatar,{user:{id:c.author,name:c.authorName||c.author},size:22}),
+              React.createElement('span',{className:'comment-author'},c.authorName||c.author),
+              React.createElement('span',{className:'comment-time'},fmtDt(c.created)),
+            ),
+            React.createElement('div',{className:'comment-body'},c.body),
+          )),
+          React.createElement('div',{style:{marginTop:16}},
+            React.createElement('textarea',{className:'input',placeholder:'Write a comment…',
+              value:commentText,rows:3,onChange:e=>setCommentText(e.target.value),style:{resize:'none',width:'100%'}}),
+            React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:8}},
+              React.createElement('button',{className:'btn btn-primary btn-sm',onClick:postComment},'Post Comment')),
+          ),
+        ),
+        tab==='time'&&React.createElement(React.Fragment,null,
+          React.createElement('div',{className:'flex ai-center jc-between mb12'},
+            React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'var(--text1)'}},`${totalLogged}h total logged`),
+            React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>setShowTimeLog(!showTimeLog)},
+              showTimeLog?'Cancel':'+ Log Time'),
+          ),
+          showTimeLog&&React.createElement('div',{className:'card mb12',style:{padding:14}},
+            React.createElement('div',{className:'flex gap8 mb8'},
+              React.createElement('div',{style:{flex:1}},
+                React.createElement('label',{style:{fontSize:11,color:'var(--text3)',display:'block',marginBottom:4}},'Hours'),
+                React.createElement('input',{className:'input',type:'number',min:.25,step:.25,placeholder:'e.g. 2',
+                  value:timeH,onChange:e=>setTimeH(e.target.value)})),
+              React.createElement('div',{style:{flex:1}},
+                React.createElement('label',{style:{fontSize:11,color:'var(--text3)',display:'block',marginBottom:4}},'Date'),
+                React.createElement('input',{className:'input',type:'date',value:timeDate,onChange:e=>setTimeDate(e.target.value)})),
+            ),
+            React.createElement('textarea',{className:'input',placeholder:'Note (optional)…',rows:2,
+              value:timeNote,onChange:e=>setTimeNote(e.target.value),style:{resize:'none',marginBottom:8}}),
+            React.createElement('button',{className:'btn btn-primary btn-sm',onClick:handleLogTime},'Save'),
+          ),
+          timelog.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12}},'No time logged yet.'),
+          timelog.map(e=>React.createElement('div',{key:e.id,className:'timelog-row'},
+            React.createElement(Avatar,{user:{id:e.author,name:e.authorName||e.author},size:20}),
+            React.createElement('span',{style:{fontWeight:700,color:'var(--accent2)'}},`${e.hours}h`),
+            React.createElement('span',{className:'muted'},e.note||'—'),
+            React.createElement('span',{className:'muted2',style:{marginLeft:'auto'}},fmt(e.date)),
+          )),
+        ),
+        tab==='attachments'&&React.createElement(React.Fragment,null,
+          React.createElement('div',{className:'mb12'},
+            React.createElement('input',{type:'file',ref:fileRef,style:{display:'none'},
+              onChange:async(e)=>{const f=e.target.files?.[0];if(f)await onAttach(f);e.target.value='';}}),
+            React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>fileRef.current?.click()},'📎 Attach File'),
+            !token&&React.createElement('span',{style:{fontSize:11,color:'var(--text3)',marginLeft:10}},'Drive not connected'),
+          ),
+          attachments.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12}},'No files attached yet.'),
+          attachments.map(a=>React.createElement('div',{key:a.id,className:'attach-row'},
+            React.createElement('div',{className:'attach-icon'},'📄'),
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('a',{href:a.url,target:'_blank',rel:'noopener',
+                style:{color:'var(--accent2)',fontSize:12,textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},a.name),
+              React.createElement('div',{style:{fontSize:10,color:'var(--text3)'}},fmtDt(a.uploaded),' · ',a.uploadedBy),
+            ),
+          )),
+        ),
       ),
-      // Tabs
-      React.createElement('div',{style:{display:'flex',borderBottom:'1px solid var(--border)',padding:'0 20px',background:'var(--bg2)',flexShrink:0}},
-        TABS.map(([id,label])=>TBtn(id,label))
-      ),
-      // Content
-      React.createElement('div',{style:{display:'flex',flex:1,overflow:'hidden'}},
-        // Main content
-        React.createElement('div',{className:'task-main'},
-          tab==='details'&&React.createElement(React.Fragment,null,
-            // Title
-            React.createElement('input',{className:'task-title-input',value:task.title,
-              onChange:e=>onUpdate(task.id,{title:e.target.value}),placeholder:'Task title'}),
-            // Description
-            React.createElement('div',{className:'mb16'},
-              React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:6}},'Description'),
-              React.createElement('textarea',{className:'task-desc',
-                value:task.desc||'',rows:5,
-                onChange:e=>onUpdate(task.id,{desc:e.target.value}),
-                placeholder:'Add a description…'}),
-            ),
-            // Subtasks
-            React.createElement('div',{className:'mb16'},
-              React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:8}},
-                `Subtasks (${subtasks.filter(s=>s.status==='Done').length}/${subtasks.length})`),
-              subtasks.length>0&&React.createElement('div',{style:{border:'1px solid var(--border)',borderRadius:'var(--radius)',marginBottom:8,overflow:'hidden'}},
-                subtasks.map((s,i)=>React.createElement('div',{key:s.id,className:'subtask-row',style:{padding:'7px 10px'}},
-                  React.createElement('div',{
-                    className:`cb${s.status==='Done'?' done':''}`,
-                    onClick:()=>onUpdate(s.id,{status:s.status==='Done'?'To Do':'Done'}),
-                  }),
-                  React.createElement('span',{className:`subtask-title${s.status==='Done'?' done':''}`},s.title),
-                  React.createElement('button',{className:'btn btn-ghost btn-xs',style:{marginLeft:'auto',color:'var(--crit)'},
-                    onClick:()=>onDelete(s.id)},'✕'),
-                ))
-              ),
-              React.createElement('div',{className:'flex gap8'},
-                React.createElement('input',{className:'input',placeholder:'New subtask…',
-                  value:newSub,onChange:e=>setNewSub(e.target.value),
-                  onKeyDown:e=>e.key==='Enter'&&addSub(),style:{flex:1}}),
-                React.createElement('button',{className:'btn btn-secondary',onClick:addSub},'Add'),
-              ),
-            ),
+      // ── Side panel ───────────────────────────────────────────────────────────
+      React.createElement('div',{className:'task-side',style:{width:260,flexShrink:0,padding:16,overflowY:'auto',borderLeft:'1px solid var(--border)',background:'var(--bg)'}},
+        React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Status'),
+          React.createElement('select',{className:'side-select',value:task.status,
+            onChange:e=>onUpdate(task.id,{status:e.target.value})},
+            STATUSES.map(s=>React.createElement('option',{key:s},s))
           ),
-          tab==='comments'&&React.createElement(React.Fragment,null,
-            comments.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12,padding:'16px 0'}},
-              'No comments yet. Be the first to comment.'),
-            comments.map(c=>React.createElement('div',{key:c.id,className:'comment'},
-              React.createElement('div',{className:'comment-hd'},
-                React.createElement(Avatar,{user:{id:c.author,name:c.authorName||c.author},size:22}),
-                React.createElement('span',{className:'comment-author'},c.authorName||c.author),
-                React.createElement('span',{className:'comment-time'},fmtDt(c.created)),
-              ),
-              React.createElement('div',{className:'comment-body'},c.body),
-            )),
-            React.createElement('div',{style:{marginTop:16}},
-              React.createElement('textarea',{className:'input',placeholder:'Write a comment…',
-                value:commentText,rows:3,onChange:e=>setCommentText(e.target.value),style:{resize:'none',width:'100%'}}),
-              React.createElement('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:8}},
-                React.createElement('button',{className:'btn btn-primary btn-sm',onClick:postComment},'Post Comment')),
-            ),
+        ),
+        React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Priority'),
+          React.createElement('select',{className:'side-select',value:task.priority||'',
+            onChange:e=>onUpdate(task.id,{priority:e.target.value||null})},
+            React.createElement('option',{value:''},'No priority'),
+            PRIORITIES.map(p=>React.createElement('option',{key:p},p))
           ),
-          tab==='time'&&React.createElement(React.Fragment,null,
-            React.createElement('div',{className:'flex ai-center jc-between mb12'},
-              React.createElement('div',{style:{fontSize:13,fontWeight:700,color:'var(--text1)'}},`${totalLogged}h total logged`),
-              React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>setShowTimeLog(!showTimeLog)},
-                showTimeLog?'Cancel':'+ Log Time'),
-            ),
-            showTimeLog&&React.createElement('div',{className:'card mb12',style:{padding:14}},
-              React.createElement('div',{className:'flex gap8 mb8'},
-                React.createElement('div',{style:{flex:1}},
-                  React.createElement('label',{style:{fontSize:11,color:'var(--text3)',display:'block',marginBottom:4}},'Hours'),
-                  React.createElement('input',{className:'input',type:'number',min:.25,step:.25,placeholder:'e.g. 2',
-                    value:timeH,onChange:e=>setTimeH(e.target.value)})),
-                React.createElement('div',{style:{flex:1}},
-                  React.createElement('label',{style:{fontSize:11,color:'var(--text3)',display:'block',marginBottom:4}},'Date'),
-                  React.createElement('input',{className:'input',type:'date',value:timeDate,onChange:e=>setTimeDate(e.target.value)})),
-              ),
-              React.createElement('textarea',{className:'input',placeholder:'Note (optional)…',rows:2,
-                value:timeNote,onChange:e=>setTimeNote(e.target.value),style:{resize:'none',marginBottom:8}}),
-              React.createElement('button',{className:'btn btn-primary btn-sm',onClick:handleLogTime},'Save'),
-            ),
-            timelog.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12}},'No time logged yet.'),
-            timelog.map(e=>React.createElement('div',{key:e.id,className:'timelog-row'},
-              React.createElement(Avatar,{user:{id:e.author,name:e.authorName||e.author},size:20}),
-              React.createElement('span',{style:{fontWeight:700,color:'var(--accent2)'}},`${e.hours}h`),
-              React.createElement('span',{className:'muted'},e.note||'—'),
-              React.createElement('span',{className:'muted2',style:{marginLeft:'auto'}},fmt(e.date)),
-            )),
-          ),
-          tab==='attachments'&&React.createElement(React.Fragment,null,
-            React.createElement('div',{className:'mb12'},
-              React.createElement('input',{type:'file',ref:fileRef,style:{display:'none'},
-                onChange:async(e)=>{const f=e.target.files?.[0];if(f)await onAttach(f);e.target.value='';}}),
-              React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>fileRef.current?.click()},
-                '📎 Attach File'),
-              !token&&React.createElement('span',{style:{fontSize:11,color:'var(--text3)',marginLeft:10}},'Drive not connected'),
-            ),
-            attachments.length===0&&React.createElement('div',{className:'muted2',style:{fontSize:12}},'No files attached yet.'),
-            attachments.map(a=>React.createElement('div',{key:a.id,className:'attach-row'},
-              React.createElement('div',{className:'attach-icon'},'📄'),
-              React.createElement('div',{style:{flex:1,minWidth:0}},
-                React.createElement('a',{href:a.url,target:'_blank',rel:'noopener',
-                  style:{color:'var(--accent2)',fontSize:12,textDecoration:'none',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},a.name),
-                React.createElement('div',{style:{fontSize:10,color:'var(--text3)'}},fmtDt(a.uploaded),' · ',a.uploadedBy),
-              ),
+        ),
+        // ── Multi-assignee ───────────────────────────────────────────────────
+        React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Assignees'),
+          React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:4,marginTop:4}},
+            users.map(u=>React.createElement('div',{key:u.id,
+              onClick:()=>toggleAssignee(u.id),
+              style:{
+                display:'flex',alignItems:'center',gap:8,padding:'5px 8px',borderRadius:'var(--radius)',
+                cursor:'pointer',border:`1px solid ${assigneeIds.includes(u.id)?'var(--accent)':'var(--border)'}`,
+                background:assigneeIds.includes(u.id)?'var(--accent-dim)':'transparent',transition:'.15s',
+              }},
+              React.createElement(Avatar,{user:u,size:20}),
+              React.createElement('span',{style:{fontSize:11,flex:1,color:assigneeIds.includes(u.id)?'var(--accent2)':'var(--text2)',fontWeight:assigneeIds.includes(u.id)?700:400}},u.name),
+              assigneeIds.includes(u.id)&&React.createElement('span',{style:{color:'var(--accent)',fontSize:11,fontWeight:700}},'✓'),
             )),
           ),
         ),
-        // Side panel
-        React.createElement('div',{className:'task-side'},
-          React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Status'),
-            React.createElement('select',{className:'side-select',value:task.status,
-              onChange:e=>onUpdate(task.id,{status:e.target.value})},
-              STATUSES.map(s=>React.createElement('option',{key:s},s))
-            ),
-          ),
-          React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Priority'),
-            React.createElement('select',{className:'side-select',value:task.priority||'',
-              onChange:e=>onUpdate(task.id,{priority:e.target.value||null})},
-              React.createElement('option',{value:''},'No priority'),
-              PRIORITIES.map(p=>React.createElement('option',{key:p},p))
-            ),
-          ),
-          React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Assignee'),
-            React.createElement('select',{className:'side-select',value:task.assigneeId||'',
-              onChange:e=>onUpdate(task.id,{assigneeId:e.target.value||null})},
-              React.createElement('option',{value:''},'Unassigned'),
-              users.map(u=>React.createElement('option',{key:u.id,value:u.id},`${u.name} (${u.id})`))
-            ),
-          ),
-          React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Due Date'),
-            React.createElement('input',{className:'side-select',type:'date',value:task.dueDate||'',
-              onChange:e=>onUpdate(task.id,{dueDate:e.target.value||null})}),
-          ),
-          React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Estimated Hours'),
-            React.createElement('input',{className:'side-select',type:'number',min:0,step:.5,
-              placeholder:'e.g. 4',value:task.estHours||'',
-              onChange:e=>onUpdate(task.id,{estHours:+e.target.value||null})}),
-          ),
-          task.estHours&&React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Progress'),
-            React.createElement('div',{style:{height:6,background:'var(--border)',borderRadius:4,overflow:'hidden',marginBottom:4}},
-              React.createElement('div',{style:{height:'100%',width:`${Math.min(100,Math.round((totalLogged/task.estHours)*100))}%`,background:'var(--accent)',borderRadius:4}})),
-            React.createElement('div',{style:{fontSize:10,color:'var(--text2)'}},
-              `${totalLogged}h / ${task.estHours}h estimated`),
-          ),
-          React.createElement('div',{className:'divider'}),
-          React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Created'),
-            React.createElement('div',{className:'muted2',style:{fontSize:11}},fmtDt(task.created)),
-          ),
-          task.updated&&React.createElement('div',{className:'side-field'},
-            React.createElement('label',null,'Updated'),
-            React.createElement('div',{className:'muted2',style:{fontSize:11}},fmtDt(task.updated)),
-          ),
+        React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Due Date'),
+          React.createElement('input',{className:'side-select',type:'date',value:task.dueDate||'',
+            onChange:e=>onUpdate(task.id,{dueDate:e.target.value||null})}),
+        ),
+        React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Estimated Hours'),
+          React.createElement('input',{className:'side-select',type:'number',min:0,step:.5,
+            placeholder:'e.g. 4',value:task.estHours||'',
+            onChange:e=>onUpdate(task.id,{estHours:+e.target.value||null})}),
+        ),
+        totalLogged>0&&task.estHours&&React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Progress'),
+          React.createElement('div',{style:{height:6,background:'var(--border)',borderRadius:4,overflow:'hidden',marginBottom:4}},
+            React.createElement('div',{style:{height:'100%',width:`${Math.min(100,Math.round((totalLogged/task.estHours)*100))}%`,background:'var(--accent)',borderRadius:4}})),
+          React.createElement('div',{style:{fontSize:10,color:'var(--text2)'}},`${totalLogged}h / ${task.estHours}h`),
+        ),
+        React.createElement('div',{className:'divider'}),
+        React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Created'),
+          React.createElement('div',{className:'muted2',style:{fontSize:11}},fmtDt(task.created)),
+        ),
+        task.updated&&React.createElement('div',{className:'side-field'},
+          React.createElement('label',null,'Updated'),
+          React.createElement('div',{className:'muted2',style:{fontSize:11}},fmtDt(task.updated)),
         ),
       ),
-    )
+    ),
   );
 }
 
@@ -1245,14 +1374,18 @@ function NewTaskModal({project,users,currentUser,defaultStatus,onClose,onCreate}
   const [title,setTitle]=useState('');
   const [desc,setDesc]=useState('');
   const [priority,setPriority]=useState('Medium');
-  const [assigneeId,setAssigneeId]=useState(currentUser?.id||'');
+  const [assigneeIds,setAssigneeIds]=useState(currentUser?.id?[currentUser.id]:[]);
   const [dueDate,setDueDate]=useState('');
   const [estHours,setEstHours]=useState('');
+
+  const toggleAssignee=(id)=>setAssigneeIds(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
 
   const submit=()=>{
     if(!title.trim()) return;
     onCreate({
-      title:title.trim(),desc,priority,assigneeId:assigneeId||null,
+      title:title.trim(),desc,priority,
+      assigneeIds,
+      assigneeId:assigneeIds[0]||null, // legacy compat
       dueDate:dueDate||null,estHours:estHours?+estHours:null,
       status:defaultStatus,projectId:project?.id,
       taskId:taskId(project),totalHours:0,
@@ -1284,13 +1417,6 @@ function NewTaskModal({project,users,currentUser,defaultStatus,onClose,onCreate}
               PRIORITIES.map(p=>React.createElement('option',{key:p},p))),
           ),
           React.createElement('div',{className:'fg'},
-            React.createElement('label',null,'Assignee'),
-            React.createElement('select',{className:'select',value:assigneeId,onChange:e=>setAssigneeId(e.target.value)},
-              React.createElement('option',{value:''},'Unassigned'),
-              users.map(u=>React.createElement('option',{key:u.id,value:u.id},`${u.name} (${u.id})`)),
-            ),
-          ),
-          React.createElement('div',{className:'fg'},
             React.createElement('label',null,'Due Date'),
             React.createElement('input',{className:'input',type:'date',value:dueDate,onChange:e=>setDueDate(e.target.value)}),
           ),
@@ -1298,6 +1424,22 @@ function NewTaskModal({project,users,currentUser,defaultStatus,onClose,onCreate}
             React.createElement('label',null,'Estimated Hours'),
             React.createElement('input',{className:'input',type:'number',min:0,step:.5,placeholder:'e.g. 4',
               value:estHours,onChange:e=>setEstHours(e.target.value)}),
+          ),
+        ),
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Assignees'),
+          React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:6,marginTop:4}},
+            users.map(u=>React.createElement('div',{key:u.id,
+              onClick:()=>toggleAssignee(u.id),
+              style:{
+                display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderRadius:'var(--radius)',
+                cursor:'pointer',border:`1px solid ${assigneeIds.includes(u.id)?'var(--accent)':'var(--border)'}`,
+                background:assigneeIds.includes(u.id)?'var(--accent-dim)':'var(--bg3)',transition:'.15s',
+              }},
+              React.createElement(Avatar,{user:u,size:20}),
+              React.createElement('span',{style:{fontSize:11,color:assigneeIds.includes(u.id)?'var(--accent2)':'var(--text2)',fontWeight:assigneeIds.includes(u.id)?700:400}},u.name),
+              assigneeIds.includes(u.id)&&React.createElement('span',{style:{color:'var(--accent)',fontSize:10,fontWeight:700}},'✓'),
+            )),
           ),
         ),
       ),
