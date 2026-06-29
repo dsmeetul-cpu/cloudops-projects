@@ -1105,63 +1105,150 @@ function Dashboard({projects,tasks,timelog,users,dashProject,setDashProject,onSe
   );
 }
 
-// ── SubtaskRow — rich subtask with status + assignees ─────────────────────────
-function SubtaskRow({subtask,users,subAssignees,subAssigneeIds,isDone,onUpdate,onDelete,isLast}){
+// ── SubtaskRow — full edit panel with title, notes, update log, assignees ─────
+function SubtaskRow({subtask,users,currentUser,subAssignees,subAssigneeIds,isDone,onUpdate,onDelete,isLast}){
   const [expanded,setExpanded]=useState(false);
+  const [editTitle,setEditTitle]=useState(subtask.title);
+  const [editNotes,setEditNotes]=useState(subtask.notes||'');
+  const [updateText,setUpdateText]=useState('');
+  const [showAssignees,setShowAssignees]=useState(false);
+
+  // keep local title in sync if subtask changes externally
+  useEffect(()=>{setEditTitle(subtask.title);},[subtask.title]);
+  useEffect(()=>{setEditNotes(subtask.notes||'');},[subtask.notes]);
+
   const toggleAssignee=(userId)=>{
     const next=subAssigneeIds.includes(userId)?subAssigneeIds.filter(x=>x!==userId):[...subAssigneeIds,userId];
     onUpdate({assigneeIds:next,assigneeId:next[0]||null});
   };
-  const statusCss=SUBTASK_STATUS_CSS[subtask.status]||'sub-st-assigned';
+
+  const postUpdate=()=>{
+    if(!updateText.trim()) return;
+    const entry={id:uid(),text:updateText.trim(),author:currentUser?.id,authorName:currentUser?.name,ts:now()};
+    const updates=[...(subtask.updates||[]),entry];
+    onUpdate({updates});
+    setUpdateText('');
+  };
+
+  const dotColor=subtask.status==='Completed'?'var(--green)':subtask.status==='In Progress'?'var(--accent2)':subtask.status==='On Hold'?'var(--med)':subtask.status==='Awaiting Confirmation'?'#c084fc':'#60a5fa';
 
   return React.createElement('div',{style:{borderBottom:isLast?'none':'1px solid var(--border)'}},
-    // Main row
-    React.createElement('div',{className:'subtask-row',style:{flexDirection:'column',gap:0}},
-      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,width:'100%'}},
-        // Status indicator dot
-        React.createElement('div',{style:{
-          width:8,height:8,borderRadius:'50%',flexShrink:0,
-          background:isDone?'var(--green)':subtask.status==='In Progress'?'var(--accent2)':subtask.status==='On Hold'?'var(--med)':subtask.status==='Awaiting Confirmation'?'#c084fc':'#60a5fa',
-        }}),
-        // Title (editable inline)
-        React.createElement('span',{style:{flex:1,fontSize:12,color:isDone?'var(--text3)':'var(--text1)',
-          textDecoration:isDone?'line-through':'none',fontWeight:500}},
-          subtask.title),
-        // Assignee avatars
-        subAssignees.length>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:0}},
-          subAssignees.slice(0,3).map((u,i)=>React.createElement(Avatar,{key:u.id,user:u,size:18,style:{marginLeft:i>0?-5:0,zIndex:3-i}})),
-          subAssignees.length>3&&React.createElement('span',{style:{fontSize:9,color:'var(--text3)',marginLeft:4}},`+${subAssignees.length-3}`),
-        ),
-        // Status dropdown
-        React.createElement('select',{
-          className:'side-select',
-          value:subtask.status||'Assigned',
-          onChange:e=>onUpdate({status:e.target.value}),
-          onClick:e=>e.stopPropagation(),
-          style:{width:'auto',fontSize:10,padding:'2px 6px',flexShrink:0,minWidth:110},
-        },
-          SUBTASK_STATUSES.map(st=>React.createElement('option',{key:st,value:st},st))
-        ),
-        // Expand/collapse for assignee picker
-        React.createElement('button',{className:'btn btn-ghost btn-xs',style:{flexShrink:0,fontSize:11,padding:'2px 5px'},
-          onClick:()=>setExpanded(e=>!e),title:'Manage assignees'},
-          expanded?'▲':'👤'),
-        React.createElement('button',{className:'btn btn-ghost btn-xs',style:{color:'var(--crit)',flexShrink:0},
-          onClick:onDelete},'✕'),
+    // ── Collapsed row ──────────────────────────────────────────────────────────
+    React.createElement('div',{
+      style:{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',cursor:'pointer',background:expanded?'var(--bg4)':'transparent',transition:'.15s'},
+      onClick:()=>setExpanded(e=>!e),
+    },
+      React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',flexShrink:0,background:dotColor}}),
+      React.createElement('span',{style:{flex:1,fontSize:12,fontWeight:500,
+        color:isDone?'var(--text3)':'var(--text1)',
+        textDecoration:isDone?'line-through':'none',
+        overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},
+        subtask.title),
+      // mini update count badge
+      (subtask.updates||[]).length>0&&React.createElement('span',{style:{
+        fontSize:9,background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:8,
+        padding:'1px 5px',color:'var(--text3)',flexShrink:0}},
+        `${(subtask.updates||[]).length} update${(subtask.updates||[]).length>1?'s':''}`),
+      // assignee avatars preview
+      subAssignees.length>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',flexShrink:0}},
+        subAssignees.slice(0,3).map((u,i)=>React.createElement(Avatar,{key:u.id,user:u,size:18,style:{marginLeft:i>0?-5:0,zIndex:3-i}})),
+        subAssignees.length>3&&React.createElement('span',{style:{fontSize:9,color:'var(--text3)',marginLeft:3}},`+${subAssignees.length-3}`),
       ),
-      // Expanded assignee picker
-      expanded&&React.createElement('div',{style:{marginTop:8,paddingTop:8,borderTop:'1px solid var(--border)',width:'100%'}},
-        React.createElement('div',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',marginBottom:6}},'Assign to'),
-        React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:5}},
-          users.map(u=>React.createElement('div',{key:u.id,
-            onClick:()=>toggleAssignee(u.id),
-            style:{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:'var(--radius)',cursor:'pointer',
-              border:`1px solid ${subAssigneeIds.includes(u.id)?'var(--accent)':'var(--border)'}`,
-              background:subAssigneeIds.includes(u.id)?'var(--accent-dim)':'var(--bg3)',transition:'.15s'}},
-            React.createElement(Avatar,{user:u,size:17,style:{marginLeft:0}}),
-            React.createElement('span',{style:{fontSize:11,color:subAssigneeIds.includes(u.id)?'var(--accent2)':'var(--text2)',fontWeight:subAssigneeIds.includes(u.id)?700:400}},u.name),
-            subAssigneeIds.includes(u.id)&&React.createElement('span',{style:{color:'var(--accent)',fontSize:10}},'\u2713'),
+      // status badge
+      React.createElement('span',{
+        className:`status ${SUBTASK_STATUS_CSS[subtask.status]||'sub-st-assigned'}`,
+        style:{fontSize:9,padding:'2px 6px',flexShrink:0},
+        onClick:e=>e.stopPropagation(),
+      },subtask.status||'Assigned'),
+      React.createElement('span',{style:{fontSize:10,color:'var(--text3)',flexShrink:0}},expanded?'▲':'▼'),
+    ),
+
+    // ── Expanded panel ─────────────────────────────────────────────────────────
+    expanded&&React.createElement('div',{style:{padding:'12px 14px 14px',background:'var(--bg3)',borderTop:'1px solid var(--border)'}},
+
+      // Title edit
+      React.createElement('div',{className:'fg'},
+        React.createElement('label',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:4}},'Subtask Title'),
+        React.createElement('input',{className:'input',value:editTitle,
+          onChange:e=>setEditTitle(e.target.value),
+          onBlur:()=>{if(editTitle.trim()&&editTitle.trim()!==subtask.title)onUpdate({title:editTitle.trim()});},
+          onKeyDown:e=>e.key==='Enter'&&e.target.blur(),
+          style:{fontSize:12}}),
+      ),
+
+      // Status + assignees row
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}},
+        React.createElement('div',null,
+          React.createElement('label',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:4}},'Status'),
+          React.createElement('select',{className:'select',value:subtask.status||'Assigned',
+            onChange:e=>onUpdate({status:e.target.value}),style:{fontSize:12}},
+            SUBTASK_STATUSES.map(st=>React.createElement('option',{key:st,value:st},st))
+          ),
+        ),
+        React.createElement('div',null,
+          React.createElement('label',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:4}},'Assignees'),
+          React.createElement('div',{
+            onClick:()=>setShowAssignees(s=>!s),
+            style:{display:'flex',alignItems:'center',gap:6,padding:'6px 8px',borderRadius:'var(--radius)',
+              border:'1px solid var(--border)',background:'var(--bg4)',cursor:'pointer',minHeight:32}},
+            subAssignees.length===0
+              ?React.createElement('span',{style:{fontSize:11,color:'var(--text3)'}},'Click to assign…')
+              :React.createElement(React.Fragment,null,
+                  subAssignees.slice(0,4).map((u,i)=>React.createElement(Avatar,{key:u.id,user:u,size:18,style:{marginLeft:i>0?-5:0,zIndex:4-i}})),
+                  subAssignees.length>4&&React.createElement('span',{style:{fontSize:10,color:'var(--text3)',marginLeft:4}},`+${subAssignees.length-4}`),
+                  React.createElement('span',{style:{fontSize:11,color:'var(--text2)',marginLeft:4}},subAssignees[0].name.split(' ')[0]+(subAssignees.length>1?` +${subAssignees.length-1}`:'')),
+                ),
+            React.createElement('span',{style:{marginLeft:'auto',fontSize:10,color:'var(--text3)'}},showAssignees?'▲':'▼'),
+          ),
+          showAssignees&&React.createElement('div',{style:{marginTop:4,padding:8,background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:'var(--radius)',display:'flex',flexWrap:'wrap',gap:5}},
+            users.map(u=>React.createElement('div',{key:u.id,
+              onClick:()=>toggleAssignee(u.id),
+              style:{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:'var(--radius)',cursor:'pointer',
+                border:`1px solid ${subAssigneeIds.includes(u.id)?'var(--accent)':'var(--border)'}`,
+                background:subAssigneeIds.includes(u.id)?'var(--accent-dim)':'var(--bg3)',transition:'.15s'}},
+              React.createElement(Avatar,{user:u,size:16,style:{marginLeft:0}}),
+              React.createElement('span',{style:{fontSize:11,color:subAssigneeIds.includes(u.id)?'var(--accent2)':'var(--text2)',fontWeight:subAssigneeIds.includes(u.id)?700:400}},u.name),
+              subAssigneeIds.includes(u.id)&&React.createElement('span',{style:{color:'var(--accent)',fontSize:10}},'✓'),
+            )),
+          ),
+        ),
+      ),
+
+      // Notes / description
+      React.createElement('div',{className:'fg'},
+        React.createElement('label',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:4}},'Notes / Description'),
+        React.createElement('textarea',{className:'input',rows:3,placeholder:'Add details, links, context…',
+          value:editNotes,
+          onChange:e=>setEditNotes(e.target.value),
+          onBlur:()=>{if(editNotes!==subtask.notes)onUpdate({notes:editNotes});},
+          style:{fontSize:12,resize:'vertical'}}),
+      ),
+
+      // Update log — past entries
+      (subtask.updates||[]).length>0&&React.createElement('div',{style:{marginBottom:10}},
+        React.createElement('div',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',marginBottom:6}},'Updates'),
+        React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:6,maxHeight:160,overflowY:'auto'}},
+          [...(subtask.updates||[])].reverse().map(u=>React.createElement('div',{key:u.id,
+            style:{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:'var(--radius)',padding:'7px 10px'}},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6,marginBottom:4}},
+              React.createElement(Avatar,{user:{id:u.author,name:u.authorName||u.author},size:18,style:{marginLeft:0}}),
+              React.createElement('span',{style:{fontSize:11,fontWeight:700,color:'var(--text1)'}},u.authorName||u.author),
+              React.createElement('span',{style:{fontSize:10,color:'var(--text3)',marginLeft:'auto'}},fmtDt(u.ts)),
+            ),
+            React.createElement('div',{style:{fontSize:12,color:'var(--text2)',lineHeight:1.5}},u.text),
           )),
+        ),
+      ),
+
+      // Post update
+      React.createElement('div',null,
+        React.createElement('label',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:4}},'Post an Update'),
+        React.createElement('textarea',{className:'input',rows:2,placeholder:'e.g. Completed initial config, pending review…',
+          value:updateText,onChange:e=>setUpdateText(e.target.value),
+          style:{fontSize:12,resize:'none',marginBottom:6}}),
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+          React.createElement('button',{className:'btn btn-danger btn-xs',onClick:onDelete},'🗑 Delete subtask'),
+          React.createElement('button',{className:'btn btn-primary btn-sm',onClick:postUpdate,disabled:!updateText.trim()},'Post Update'),
         ),
       ),
     ),
@@ -1249,7 +1336,7 @@ function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attac
                 const subAssignees=subAssigneeIds.map(id=>users.find(u=>u.id===id)).filter(Boolean);
                 const isDone=s.status==='Completed';
                 return React.createElement(SubtaskRow,{
-                  key:s.id,subtask:s,users,subAssignees,subAssigneeIds,isDone,
+                  key:s.id,subtask:s,users,currentUser,subAssignees,subAssigneeIds,isDone,
                   onUpdate:(patch)=>onUpdate(s.id,patch),
                   onDelete:()=>onDelete(s.id),
                   isLast:si===subtasks.length-1,
