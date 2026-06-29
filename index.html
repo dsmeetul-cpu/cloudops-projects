@@ -151,8 +151,14 @@ html,body{height:100%;background:var(--bg);color:var(--text1);font-family:system
 .side-select{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:5px 8px;color:var(--text1);font-size:12px;width:100%;outline:none;cursor:pointer}
 .side-select:focus{border-color:var(--accent)}
 .side-select option{background:var(--bg3)}
-/* ── Subtasks ── */
-.subtask-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
+/* ── Subtask status badges ── */
+.sub-st-assigned{background:rgba(59,130,246,0.15);color:#60a5fa}
+.sub-st-inprogress{background:rgba(99,102,241,0.15);color:var(--accent2)}
+.sub-st-hold{background:rgba(234,179,8,0.15);color:var(--med)}
+.sub-st-awaiting{background:rgba(168,85,247,0.15);color:#c084fc}
+.sub-st-completed{background:rgba(34,197,94,0.15);color:var(--green)}
+/* ── Subtask expanded row ── */
+.subtask-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border)}
 .subtask-row:last-child{border-bottom:none}
 .subtask-title{flex:1;font-size:12px;color:var(--text1)}
 .subtask-title.done{text-decoration:line-through;color:var(--text3)}
@@ -235,6 +241,14 @@ const SCOPES='https://www.googleapis.com/auth/drive.file';
 
 const PRIORITIES=['Critical','High','Medium','Low'];
 const STATUSES=['To Do','In Progress','In Review','Done','Blocked'];
+const SUBTASK_STATUSES=['Assigned','In Progress','On Hold','Awaiting Confirmation','Completed'];
+const SUBTASK_STATUS_CSS={
+  'Assigned':'sub-st-assigned',
+  'In Progress':'sub-st-inprogress',
+  'On Hold':'sub-st-hold',
+  'Awaiting Confirmation':'sub-st-awaiting',
+  'Completed':'sub-st-completed',
+};
 const STATUS_KEYS={'To Do':'todo','In Progress':'inprogress','In Review':'review','Done':'done','Blocked':'blocked'};
 const STATUS_CSS={todo:'status-todo','In Progress':'status-inprogress','In Review':'status-review',Done:'status-done',Blocked:'status-blocked'};
 const PRI_CSS={Critical:'pri-critical',High:'pri-high',Medium:'pri-medium',Low:'pri-low'};
@@ -478,11 +492,26 @@ function App(){
     setModal(null);
   };
 
-  const createProject=(name,folderId,color,desc)=>{
+  const createProject=(name,folderId,color,desc,subtaskDefs=[])=>{
     const p={id:uid(),type:'project',name,folderId,color,desc,created:now(),createdBy:currentUser?.id,
       columns:['To Do','In Progress','In Review','Done']};
     setProjects(prev=>[...prev,p]);
     setSelProject(p);
+    // Create a parent "Project Kickoff" task to hold the subtasks if subtaskDefs provided
+    if(subtaskDefs.length>0){
+      const parentTask={id:uid(),title:`${name} — Tasks`,desc:'Auto-generated task container for project subtasks.',
+        priority:'Medium',assigneeIds:[],assigneeId:null,dueDate:null,estHours:null,
+        status:'To Do',projectId:p.id,parentId:null,
+        taskId:taskId(p),totalHours:0,created:now(),createdBy:currentUser?.id,subtasksDone:0};
+      const subs=subtaskDefs.map(sd=>({
+        id:uid(),title:sd.title,desc:'',priority:'Medium',
+        assigneeIds:sd.assigneeIds||[],assigneeId:(sd.assigneeIds||[])[0]||null,
+        dueDate:null,estHours:null,
+        status:'Assigned',projectId:p.id,parentId:parentTask.id,
+        taskId:taskId(p),totalHours:0,created:now(),createdBy:currentUser?.id,subtasksDone:0,
+      }));
+      setTasks(prev=>[...prev,parentTask,...subs]);
+    }
     setModal(null);
   };
 
@@ -690,7 +719,7 @@ function App(){
     ),
     // ── Modals ───────────────────────────────────────────────────────────────
     modal==='newFolder'&&React.createElement(NewFolderModal,{onClose:()=>setModal(null),onCreate:createFolder}),
-    modal==='newProject'&&React.createElement(NewProjectModal,{folderId:selFolder,onClose:()=>setModal(null),onCreate:createProject}),
+    modal==='newProject'&&React.createElement(NewProjectModal,{folderId:selFolder,users,onClose:()=>setModal(null),onCreate:createProject}),
     (modal?.type==='newTask'||modal==='newTask')&&React.createElement(NewTaskModal,{
       project:selProject,users,currentUser,
       defaultStatus:modal?.defaultStatus||'To Do',
@@ -782,7 +811,7 @@ function KanbanCard({task,users,getTasks,onClick}){
   const assigneeIds=task.assigneeIds||(task.assigneeId?[task.assigneeId]:[]);
   const assignees=assigneeIds.map(id=>users.find(u=>u.id===id)).filter(Boolean);
   const subtasks=getTasks(task.projectId,task.id);
-  const doneSubs=subtasks.filter(s=>s.status==='Done').length;
+  const doneSubs=subtasks.filter(s=>s.status==='Completed').length;
   const pct=subtasks.length?Math.round(doneSubs/subtasks.length*100):0;
   const over=isOverdue(task.dueDate)&&task.status!=='Done';
   return React.createElement('div',{className:'k-card',onClick,
@@ -841,7 +870,7 @@ function ListView({project,tasks,users,onTaskClick,onAddTask,getTasks}){
           React.createElement('div',{className:`cb${t.status==='Done'?' done':''}`}),
           React.createElement('div',{className:'title'},
             React.createElement('span',null,t.title),
-            subs.length>0&&React.createElement('span',{className:'sub-count'},`${subs.filter(s=>s.status==='Done').length}/${subs.length}`),
+            subs.length>0&&React.createElement('span',{className:'sub-count'},`${subs.filter(s=>s.status==='Completed').length}/${subs.length}`),
           ),
           React.createElement('div',null,
             (()=>{
@@ -1076,6 +1105,69 @@ function Dashboard({projects,tasks,timelog,users,dashProject,setDashProject,onSe
   );
 }
 
+// ── SubtaskRow — rich subtask with status + assignees ─────────────────────────
+function SubtaskRow({subtask,users,subAssignees,subAssigneeIds,isDone,onUpdate,onDelete,isLast}){
+  const [expanded,setExpanded]=useState(false);
+  const toggleAssignee=(userId)=>{
+    const next=subAssigneeIds.includes(userId)?subAssigneeIds.filter(x=>x!==userId):[...subAssigneeIds,userId];
+    onUpdate({assigneeIds:next,assigneeId:next[0]||null});
+  };
+  const statusCss=SUBTASK_STATUS_CSS[subtask.status]||'sub-st-assigned';
+
+  return React.createElement('div',{style:{borderBottom:isLast?'none':'1px solid var(--border)'}},
+    // Main row
+    React.createElement('div',{className:'subtask-row',style:{flexDirection:'column',gap:0}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,width:'100%'}},
+        // Status indicator dot
+        React.createElement('div',{style:{
+          width:8,height:8,borderRadius:'50%',flexShrink:0,
+          background:isDone?'var(--green)':subtask.status==='In Progress'?'var(--accent2)':subtask.status==='On Hold'?'var(--med)':subtask.status==='Awaiting Confirmation'?'#c084fc':'#60a5fa',
+        }}),
+        // Title (editable inline)
+        React.createElement('span',{style:{flex:1,fontSize:12,color:isDone?'var(--text3)':'var(--text1)',
+          textDecoration:isDone?'line-through':'none',fontWeight:500}},
+          subtask.title),
+        // Assignee avatars
+        subAssignees.length>0&&React.createElement('div',{style:{display:'flex',alignItems:'center',gap:0}},
+          subAssignees.slice(0,3).map((u,i)=>React.createElement(Avatar,{key:u.id,user:u,size:18,style:{marginLeft:i>0?-5:0,zIndex:3-i}})),
+          subAssignees.length>3&&React.createElement('span',{style:{fontSize:9,color:'var(--text3)',marginLeft:4}},`+${subAssignees.length-3}`),
+        ),
+        // Status dropdown
+        React.createElement('select',{
+          className:'side-select',
+          value:subtask.status||'Assigned',
+          onChange:e=>onUpdate({status:e.target.value}),
+          onClick:e=>e.stopPropagation(),
+          style:{width:'auto',fontSize:10,padding:'2px 6px',flexShrink:0,minWidth:110},
+        },
+          SUBTASK_STATUSES.map(st=>React.createElement('option',{key:st,value:st},st))
+        ),
+        // Expand/collapse for assignee picker
+        React.createElement('button',{className:'btn btn-ghost btn-xs',style:{flexShrink:0,fontSize:11,padding:'2px 5px'},
+          onClick:()=>setExpanded(e=>!e),title:'Manage assignees'},
+          expanded?'▲':'👤'),
+        React.createElement('button',{className:'btn btn-ghost btn-xs',style:{color:'var(--crit)',flexShrink:0},
+          onClick:onDelete},'✕'),
+      ),
+      // Expanded assignee picker
+      expanded&&React.createElement('div',{style:{marginTop:8,paddingTop:8,borderTop:'1px solid var(--border)',width:'100%'}},
+        React.createElement('div',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',marginBottom:6}},'Assign to'),
+        React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:5}},
+          users.map(u=>React.createElement('div',{key:u.id,
+            onClick:()=>toggleAssignee(u.id),
+            style:{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:'var(--radius)',cursor:'pointer',
+              border:`1px solid ${subAssigneeIds.includes(u.id)?'var(--accent)':'var(--border)'}`,
+              background:subAssigneeIds.includes(u.id)?'var(--accent-dim)':'var(--bg3)',transition:'.15s'}},
+            React.createElement(Avatar,{user:u,size:17,style:{marginLeft:0}}),
+            React.createElement('span',{style:{fontSize:11,color:subAssigneeIds.includes(u.id)?'var(--accent2)':'var(--text2)',fontWeight:subAssigneeIds.includes(u.id)?700:400}},u.name),
+            subAssigneeIds.includes(u.id)&&React.createElement('span',{style:{color:'var(--accent)',fontSize:10}},'\u2713'),
+          )),
+        ),
+      ),
+    ),
+  );
+}
+
 // ── Task Detail — inline full-page ───────────────────────────────────────────
 function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attachments,subtasks,onClose,onUpdate,onDelete,onComment,onLogTime,onAddSubtask,onAttach,token}){
   const [commentText,setCommentText]=useState('');
@@ -1097,7 +1189,7 @@ function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attac
 
   const addSub=()=>{
     if(!newSub.trim()) return;
-    onAddSubtask({title:newSub.trim(),projectId:task.projectId,parentId:task.id,status:'To Do'});
+    onAddSubtask({title:newSub.trim(),projectId:task.projectId,parentId:task.id,status:'Assigned',assigneeIds:[],assigneeId:null});
     setNewSub('');
   };
 
@@ -1150,15 +1242,19 @@ function TaskDetail({task,tasks,users,currentUser,project,comments,timelog,attac
           ),
           React.createElement('div',{className:'mb16'},
             React.createElement('label',{style:{fontSize:11,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',display:'block',marginBottom:8}},
-              `Subtasks (${subtasks.filter(s=>s.status==='Done').length}/${subtasks.length})`),
+              `Subtasks (${subtasks.filter(s=>s.status==='Completed').length}/${subtasks.length})`),
             subtasks.length>0&&React.createElement('div',{style:{border:'1px solid var(--border)',borderRadius:'var(--radius)',marginBottom:8,overflow:'hidden'}},
-              subtasks.map(s=>React.createElement('div',{key:s.id,className:'subtask-row',style:{padding:'7px 10px'}},
-                React.createElement('div',{className:`cb${s.status==='Done'?' done':''}`,
-                  onClick:()=>onUpdate(s.id,{status:s.status==='Done'?'To Do':'Done'})}),
-                React.createElement('span',{className:`subtask-title${s.status==='Done'?' done':''}`},s.title),
-                React.createElement('button',{className:'btn btn-ghost btn-xs',style:{marginLeft:'auto',color:'var(--crit)'},
-                  onClick:()=>onDelete(s.id)},'✕'),
-              ))
+              subtasks.map((s,si)=>{
+                const subAssigneeIds=s.assigneeIds||(s.assigneeId?[s.assigneeId]:[]);
+                const subAssignees=subAssigneeIds.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+                const isDone=s.status==='Completed';
+                return React.createElement(SubtaskRow,{
+                  key:s.id,subtask:s,users,subAssignees,subAssigneeIds,isDone,
+                  onUpdate:(patch)=>onUpdate(s.id,patch),
+                  onDelete:()=>onDelete(s.id),
+                  isLast:si===subtasks.length-1,
+                });
+              })
             ),
             React.createElement('div',{className:'flex gap8'},
               React.createElement('input',{className:'input',placeholder:'New subtask…',
@@ -1331,12 +1427,30 @@ function NewFolderModal({onClose,onCreate}){
   );
 }
 
-function NewProjectModal({folderId,onClose,onCreate}){
+function NewProjectModal({folderId,users,onClose,onCreate}){
   const [name,setName]=useState('');
   const [desc,setDesc]=useState('');
   const [color,setColor]=useState(COL_COLORS[0]);
+  const [subtasks,setSubtasks]=useState([]);
+  const [newSubTitle,setNewSubTitle]=useState('');
+
+  const addSubtask=()=>{
+    if(!newSubTitle.trim()) return;
+    setSubtasks(prev=>[...prev,{id:uid(),title:newSubTitle.trim(),assigneeIds:[]}]);
+    setNewSubTitle('');
+  };
+  const removeSubtask=(id)=>setSubtasks(prev=>prev.filter(s=>s.id!==id));
+  const toggleSubAssignee=(subId,userId)=>{
+    setSubtasks(prev=>prev.map(s=>{
+      if(s.id!==subId) return s;
+      const ids=s.assigneeIds.includes(userId)?s.assigneeIds.filter(x=>x!==userId):[...s.assigneeIds,userId];
+      return{...s,assigneeIds:ids};
+    }));
+  };
+  const [expandedSub,setExpandedSub]=useState(null);
+
   return React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target.className==='modal-overlay')onClose();}},
-    React.createElement('div',{className:'modal modal-md'},
+    React.createElement('div',{className:'modal modal-lg'},
       React.createElement('div',{className:'modal-hd'},
         React.createElement('h3',null,'New Project'),
         React.createElement('button',{className:'btn btn-ghost btn-icon',onClick:onClose},'✕'),
@@ -1350,7 +1464,7 @@ function NewProjectModal({folderId,onClose,onCreate}){
         React.createElement('div',{className:'fg'},
           React.createElement('label',null,'Description (optional)'),
           React.createElement('textarea',{className:'textarea',placeholder:'What is this project about?',
-            value:desc,onChange:e=>setDesc(e.target.value),rows:3}),
+            value:desc,onChange:e=>setDesc(e.target.value),rows:2}),
         ),
         React.createElement('div',{className:'fg'},
           React.createElement('label',null,'Colour'),
@@ -1361,14 +1475,64 @@ function NewProjectModal({folderId,onClose,onCreate}){
                 border:`2px solid ${color===c?'#fff':'transparent'}`,transition:'.15s'}}))
           ),
         ),
+        // ── Subtasks builder ──────────────────────────────────────────────────
+        React.createElement('div',{className:'fg'},
+          React.createElement('label',null,'Subtasks (optional)'),
+          React.createElement('div',{style:{fontSize:11,color:'var(--text3)',marginBottom:8}},'Define subtasks upfront and assign them to engineers or managers.'),
+          // Existing subtasks
+          subtasks.length>0&&React.createElement('div',{style:{border:'1px solid var(--border)',borderRadius:'var(--radius)',marginBottom:8,overflow:'hidden'}},
+            subtasks.map((s,i)=>React.createElement('div',{key:s.id,style:{borderBottom:i<subtasks.length-1?'1px solid var(--border)':'none'}},
+              // Row header
+              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--bg3)',cursor:'pointer'},
+                onClick:()=>setExpandedSub(expandedSub===s.id?null:s.id)},
+                React.createElement('span',{style:{fontSize:12,color:'var(--accent2)',fontWeight:600,flexShrink:0}},'☰'),
+                React.createElement('span',{style:{flex:1,fontSize:12,color:'var(--text1)',fontWeight:500}},s.title),
+                s.assigneeIds.length>0&&React.createElement('div',{style:{display:'flex',gap:2,alignItems:'center',marginRight:8}},
+                  s.assigneeIds.slice(0,3).map(id=>{
+                    const u=users.find(x=>x.id===id);
+                    return u?React.createElement(Avatar,{key:id,user:u,size:18,style:{marginLeft:0}}):null;
+                  }),
+                  s.assigneeIds.length>3&&React.createElement('span',{style:{fontSize:9,color:'var(--text3)',marginLeft:2}},`+${s.assigneeIds.length-3}`),
+                ),
+                React.createElement('span',{style:{fontSize:10,color:'var(--text3)',flexShrink:0}},expandedSub===s.id?'▲':'▼'),
+                React.createElement('button',{className:'btn btn-ghost btn-xs',style:{color:'var(--crit)',flexShrink:0},
+                  onClick:(e)=>{e.stopPropagation();removeSubtask(s.id);}},
+                  '✕'),
+              ),
+              // Expanded assignee picker
+              expandedSub===s.id&&React.createElement('div',{style:{padding:'10px 12px',background:'var(--bg4)'}},
+                React.createElement('div',{style:{fontSize:10,fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.07em',marginBottom:6}},'Assign to'),
+                React.createElement('div',{style:{display:'flex',flexWrap:'wrap',gap:5}},
+                  users.map(u=>React.createElement('div',{key:u.id,
+                    onClick:()=>toggleSubAssignee(s.id,u.id),
+                    style:{display:'flex',alignItems:'center',gap:5,padding:'4px 8px',borderRadius:'var(--radius)',cursor:'pointer',
+                      border:`1px solid ${s.assigneeIds.includes(u.id)?'var(--accent)':'var(--border)'}`,
+                      background:s.assigneeIds.includes(u.id)?'var(--accent-dim)':'var(--bg3)',transition:'.15s'}},
+                    React.createElement(Avatar,{user:u,size:18,style:{marginLeft:0}}),
+                    React.createElement('span',{style:{fontSize:11,color:s.assigneeIds.includes(u.id)?'var(--accent2)':'var(--text2)',fontWeight:s.assigneeIds.includes(u.id)?700:400}},u.name),
+                    s.assigneeIds.includes(u.id)&&React.createElement('span',{style:{color:'var(--accent)',fontSize:10,fontWeight:700}},'✓'),
+                  )),
+                ),
+              ),
+            ))
+          ),
+          // Add new subtask input
+          React.createElement('div',{className:'flex gap8'},
+            React.createElement('input',{className:'input',placeholder:'e.g. Set up monitoring…',
+              value:newSubTitle,onChange:e=>setNewSubTitle(e.target.value),
+              onKeyDown:e=>e.key==='Enter'&&addSub&&addSubtask(),style:{flex:1}}),
+            React.createElement('button',{className:'btn btn-secondary',onClick:addSubtask,disabled:!newSubTitle.trim()},'+ Add'),
+          ),
+        ),
       ),
       React.createElement('div',{className:'modal-ft'},
         React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Cancel'),
-        React.createElement('button',{className:'btn btn-primary',onClick:()=>name&&onCreate(name,folderId,color,desc),disabled:!name},'Create Project'),
+        React.createElement('button',{className:'btn btn-primary',onClick:()=>name&&onCreate(name,folderId,color,desc,subtasks),disabled:!name},'Create Project'),
       ),
     )
   );
 }
+// NewProjectModal is fully defined above
 
 function NewTaskModal({project,users,currentUser,defaultStatus,onClose,onCreate}){
   const [title,setTitle]=useState('');
